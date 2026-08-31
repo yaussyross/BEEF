@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@theme {
+  /* BEEF brand palette */
+  --color-steak: #d62839; /* primary red */
+  --color-beefer: #6f2a1e; /* deep brown */
+  --color-char: #1e1b18; /* warm ink text */
+  --color-cream: #fbf3e8; /* warm off-white bg */
+  --color-sizzle: #f77f00; /* orange accent */
+  --color-lime: #a4c639; /* margarita green */
+  --color-berry: #b3146b; /* berry punch */
+
+  /* Type */
+  --font-display: "Unbounded", "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Space Grotesk", system-ui, ui-sans-serif, sans-serif;
+  --font-scribble: "Caveat", cursive;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cream text-char font-body antialiased;
+  }
+
+  ::selection {
+    background: var(--color-steak);
+    color: var(--color-cream);
+  }
+}
+
+/* ---------- Reusable campy bits ---------- */
+
+@utility brand-mark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@utility scribble {
+  font-family: var(--font-scribble);
+}
+
+/* Soft meat-grade marquee */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 32s linear infinite;
+}
+
+/* Gentle float for the hero collage */
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--rot, 0deg));
+  }
+}
+
+.animate-floaty {
+  animation: floaty 6s ease-in-out infinite;
+}
+
+/* The hero gradient wash (steak red -> sizzle orange -> berry) */
+.hero-wash {
+  background: linear-gradient(
+    135deg,
+    #d62839 0%,
+    #f77f00 55%,
+    #b3146b 100%
+  );
+}
+
+.hero-wash-soft {
+  background: linear-gradient(
+    160deg,
+    rgba(214, 40, 57, 0.92) 0%,
+    rgba(247, 127, 0, 0.9) 52%,
+    rgba(179, 20, 107, 0.92) 100%
+  );
+}
+
+/* Bold outlined button text */
+.text-outline {
+  -webkit-text-stroke: 2px var(--color-cream);
+  color: transparent;
+}

@@ -1,0 +1,14 @@
+# Root (monorepo) ignores. Subdirectories keep their own .gitignore files.
+
+# Bun/node (root package.json exists only to run db/migrate.ts).
+node_modules/
+bun.lockb
+
+# Secrets — never commit.
+.env
+.env.*
+!.env.example
+
+# OS / editor noise.
+.DS_Store
+*.log
