@@ -13,9 +13,7 @@ import 'config/api_config.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final TokenStore tokenStore = SecureTokenStore(
-    const FlutterSecureStorage(),
-  );
+  final TokenStore tokenStore = const SecureTokenStore();
   final ApiClient apiClient = ApiClient(
     baseUrl: ApiConfig.baseUrl,
     tokenStore: tokenStore,

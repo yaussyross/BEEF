@@ -9,15 +9,15 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       body: SafeArea(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              const BeefWordmark(),
-              const SizedBox(height: 40),
-              const CircularProgressIndicator(color: BeefColors.lime),
+              BeefWordmark(),
+              SizedBox(height: 40),
+              CircularProgressIndicator(color: BeefColors.lime),
             ],
           ),
         ),

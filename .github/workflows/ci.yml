@@ -24,6 +24,13 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Build FIRST: vite generates src/routeTree.gen.ts (gitignored) and
+      # dist/server/server.js, both of which tsc needs to resolve the route
+      # types and serve.ts/vercel-entry.ts imports. Without this ordering a
+      # clean checkout type-checks against a route tree that doesn't exist yet.
+      - name: Build
+        run: bun run build
+
       # serve.ts uses Bun-only globals (Bun.*, import.meta.dir) and reports
       # EXACTLY five pre-existing type errors under the site's tsconfig. We
       # tolerate only those five and fail on anything else.
@@ -41,9 +48,6 @@ jobs:
             exit 1
           fi
           echo "Type-check passed (only the 5 known serve.ts Bun-global errors tolerated)."
-
-      - name: Build
-        run: bun run build
 
   flutter:
     name: Flutter — scaffold + analyze + build apk
