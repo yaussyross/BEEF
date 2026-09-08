@@ -1,0 +1,29 @@
+name: beef
+description: BEEF — a free, ads-supported gay social app for friends, dates & hookups. Campy, stylish, privacy-first. A cut above the rest.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # API client layer (lib/api/) — JSON over HTTP + refresh-on-401.
+  http: ^1.2.2
+  # Token storage in the platform secure keystore (iOS Keychain /
+  # Android EncryptedSharedPreferences). Never shared prefs.
+  flutter_secure_storage: ^9.2.2
+  # 1:1 chat WebSocket (consumed in the chat slice). Declared now so the
+  # dependency graph is pinned from the start; the auth slice does not use it.
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,11 @@
+{
+  "name": "beef",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:migrate": "bun db/migrate.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
+  }
+}
