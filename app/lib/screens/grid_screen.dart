@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide GridTile;
 
 import '../api/discovery_api.dart';
 import '../api/http_client.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../discovery/discovery_controller.dart' show DiscoveryInterests;
+import '../discovery/discovery_controller.dart' show DiscoveryInterests, InterestOption;
 import '../models/intent_tag.dart';
 import '../theme/beef_colors.dart';
 
