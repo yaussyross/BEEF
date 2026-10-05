@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend — type-check + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Build FIRST: vite generates src/routeTree.gen.ts (gitignored) and
+      # dist/server/server.js, both of which tsc needs to resolve the route
+      # types and serve.ts/vercel-entry.ts imports. Without this ordering a
+      # clean checkout type-checks against a route tree that doesn't exist yet.
+      - name: Build
+        run: bun run build
+
+      # serve.ts uses Bun-only globals (Bun.*, import.meta.dir) and reports
+      # EXACTLY five pre-existing type errors under the site's tsconfig. We
+      # tolerate only those five and fail on anything else.
+      - name: Type-check
+        run: |
+          node_modules/.bin/tsc --noEmit --pretty false > /tmp/tsc.log 2>&1 || true
+          cat /tmp/tsc.log
+          unexpected=$(grep -E 'error TS[0-9]+' /tmp/tsc.log \
+            | grep -v -E '^serve\.ts\(26,35\): error TS2339:' \
+            | grep -v -E '^serve\.ts\((44,9|46,5|61,24|70,11)\): error TS2868:' \
+            || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::Unexpected TypeScript errors found:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+          echo "Type-check passed (only the 5 known serve.ts Bun-global errors tolerated)."
+
+  flutter:
+    name: Flutter — scaffold + analyze + build apk
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+
+      # android/ and ios/ are intentionally not committed. Generate them in a
+      # throwaway directory and copy ONLY the platform scaffolding (+ .metadata)
+      # back, so the hand-written lib/, pubspec.yaml, and analysis_options.yaml
+      # are never touched by `flutter create`.
+      - name: Generate platform folders (never clobber authored source)
+        run: |
+          set -euo pipefail
+          snapshot=$(mktemp -d)
+          cp -a lib "$snapshot/lib"
+          cp -a pubspec.yaml analysis_options.yaml README.md .gitignore "$snapshot/"
+
+          scaffold="$RUNNER_TEMP/beef_scaffold"
+          rm -rf "$scaffold"
+          flutter create "$scaffold" \
+            --org com.beef \
+            --project-name beef \
+            --platforms android,ios \
+            --no-pub
+
+          cp -a "$scaffold/android" ./android
+          cp -a "$scaffold/ios" ./ios
+          [ -f "$scaffold/.metadata" ] && cp -a "$scaffold/.metadata" ./.metadata || true
+
+          diff -rq "$snapshot/lib" lib
+          diff -q "$snapshot/pubspec.yaml" pubspec.yaml
+          diff -q "$snapshot/analysis_options.yaml" analysis_options.yaml
+          diff -q "$snapshot/README.md" README.md
+          diff -q "$snapshot/.gitignore" .gitignore
+          echo "Authored files intact; platform folders generated."
+
+      - name: Fetch dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build debug APK
+        run: flutter build apk --debug
