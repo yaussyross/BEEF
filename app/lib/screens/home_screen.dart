@@ -3,59 +3,98 @@ import 'package:flutter/material.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_scope.dart';
 import '../theme/beef_colors.dart';
-import '../widgets/beef_wordmark.dart';
-import '../widgets/brand_button.dart';
+import 'grid_screen.dart';
 
-/// Placeholder authenticated home. The proximity grid, profiles, and chat land
-/// in later slices — this is the post-login destination for the auth slice.
-class HomeScreen extends StatelessWidget {
+/// Authenticated home: bottom-tab shell with the proximity grid as the landing
+/// tab. Later slices add chat (and any further tabs) here — the grid stays the
+/// spine.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _tab,
+        children: const <Widget>[
+          GridScreen(),
+          _SoonTab(
+            icon: Icons.chat_bubble_outline,
+            title: 'Chats',
+            message: 'Saucy conversations are marinating — chat lands next.',
+          ),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (int index) =>
+            setState(() => _tab = index),
+        backgroundColor: BeefColors.char,
+        indicatorColor: BeefColors.steak.withValues(alpha: 0.35),
+        destinations: const <NavigationDestination>[
+          NavigationDestination(
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view_rounded),
+            label: 'Grid',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Chats',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Placeholder for tabs whose slices have not landed yet. Sign-out lives here
+/// until a settings tab exists.
+class _SoonTab extends StatelessWidget {
+  const _SoonTab({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AuthController controller = AuthScope.of(context);
-    final String display = _displayName(controller);
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BEEF'),
-        actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: () => controller.signOut(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(title.toUpperCase())),
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                const BeefWordmark(compact: true),
-                const SizedBox(height: 24),
+                Icon(icon, size: 56, color: BeefColors.sizzle),
+                const SizedBox(height: 16),
                 Text(
-                  'Welcome back, $display.',
-                  style: theme.textTheme.titleLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'The sizzling grid is on its way. You are in — friends, dates, '
-                  'and hookups, all a cut above the rest.',
+                  message,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: BeefColors.cream.withValues(alpha: 0.75),
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
-                BrandButton(
-                  label: 'Sign out',
+                OutlinedButton.icon(
                   onPressed: () => controller.signOut(),
-                  accent: true,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Sign out'),
                 ),
               ],
             ),
@@ -63,11 +102,5 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _displayName(AuthController controller) {
-    final String? name = controller.profile?.displayName;
-    if (name != null && name.isNotEmpty) return name;
-    return controller.user?.email ?? 'there';
   }
 }
