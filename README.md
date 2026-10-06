@@ -7,12 +7,24 @@ This is a monorepo holding both codebases plus the database schema:
 
 ```
 .
+├── docs/          handoff + reference docs — START HERE: docs/HANDOFF.md
 ├── backend/     Bun + TanStack Start — the landing site AND the app's REST API + WebSocket hub
 ├── app/         Flutter app (one Dart codebase → Android + iOS)
 ├── db/          Postgres schema migrations + migration runners
 ├── .github/     CI (GitHub Actions)
+├── .env.example all env vars the codebase reads (placeholders)
+├── AGENTS.md    operating rules (esp. for AI agents) — read before coding
 └── README.md    you are here
 ```
+
+> **Start here → [`docs/HANDOFF.md`](docs/HANDOFF.md).** It explains what BEEF
+> is, the verified state of each component, what to do next, and which docs to
+> read in which order (`BUSINESS`, `ARCHITECTURE`, `STATUS`, `RUNBOOK`).
+> Snapshot: the backend is built and verified live (auth, grid, profiles, 1:1
+> chat via WebSocket, block/report, moderation — all smoke-tested); the Flutter
+> client (onboarding/auth + grid/profiles/intent/discovery slices) compiles in
+> CI but has not been run on a device; the chat UI, block/report & privacy UI,
+> and the profile rating system are not built yet.
 
 > **CI is the only place the Flutter app is compiled.** The team sandbox can't
 > run the Flutter SDK (2.48 GB unpacked, extraction fails on its overlay FS), so
