@@ -102,5 +102,8 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      - name: Test
+        run: flutter test
+
       - name: Build debug APK
         run: flutter build apk --debug
