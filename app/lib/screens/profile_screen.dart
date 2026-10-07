@@ -5,6 +5,8 @@ import '../api/http_client.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_scope.dart';
 import '../config/api_config.dart';
+import '../chat/chat_scope.dart';
+import 'conversation_screen.dart';
 import '../models/public_profile.dart';
 import '../theme/beef_colors.dart';
 
@@ -27,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   PublicProfile? _profile;
   String? _error;
   bool _loading = true;
+  bool _startingChat = false;
 
   @override
   void initState() {
@@ -46,8 +49,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         baseUrl: ApiConfig.baseUrl,
         tokenStore: auth.tokenStore,
       );
-      final PublicProfile profile =
-          await DiscoveryApi(client).profile(widget.userId);
+      final PublicProfile profile = await DiscoveryApi(client)
+          .profile(widget.userId);
       if (!mounted) return;
       setState(() {
         _profile = profile;
@@ -62,29 +65,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _startChat() async {
+    if (_startingChat) return;
+    setState(() => _startingChat = true);
+    try {
+      final thread = await ChatScope.read(context).startThread(widget.userId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ConversationScreen(thread: thread),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is ApiException
+                ? error.message
+                : 'Could not open chat. Try again.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _startingChat = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_profile?.displayName ?? 'PROFILE'),
-      ),
+      appBar: AppBar(title: Text(_profile?.displayName ?? 'PROFILE')),
+      bottomNavigationBar: _profile == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FilledButton.icon(
+                  onPressed: _startingChat ? null : _startChat,
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: Text(_startingChat ? 'Opening chat…' : 'Say hello'),
+                ),
+              ),
+            ),
       body: SafeArea(
         child: _loading
             ? const Center(
                 child: CircularProgressIndicator(color: BeefColors.lime),
               )
             : _error != null
-                ? _ProfileError(message: _error, onRetry: _load)
-                : _profile == null
-                    ? _ProfileError(
-                        message: 'Profile not found.',
-                        onRetry: _load,
-                      )
-                    : _ProfileBody(
-                        profile: _profile!,
-                        theme: theme,
-                      ),
+            ? _ProfileError(message: _error, onRetry: _load)
+            : _profile == null
+            ? _ProfileError(message: 'Profile not found.', onRetry: _load)
+            : _ProfileBody(profile: _profile!, theme: theme),
       ),
     );
   }
@@ -233,10 +267,7 @@ class _ProfileBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            profile.bio!,
-            style: theme.textTheme.bodyLarge,
-          ),
+          Text(profile.bio!, style: theme.textTheme.bodyLarge),
         ],
         if (profile.interests.isNotEmpty) ...<Widget>[
           const SizedBox(height: 24),
@@ -290,11 +321,7 @@ class _CertifiedCutBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const Icon(
-            Icons.verified,
-            size: 14,
-            color: BeefColors.lime,
-          ),
+          const Icon(Icons.verified, size: 14, color: BeefColors.lime),
           const SizedBox(width: 4),
           Text(
             'Certified Cut',

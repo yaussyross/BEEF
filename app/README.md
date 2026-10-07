@@ -123,3 +123,31 @@ run instructions. Migrations are idempotent and also tracked by a
 `bun ../db/migrate.ts` from the app dir).
 
 Requires `postgis` + `citext` extensions (both supported on Neon).
+
+## Chat slice
+
+The Chats tab now lists real `/api/threads` results and unread counts. A profile's
+**Say hello** action opens its 1:1 thread. Conversation screens support history,
+keyset pagination, live messages, pending/failed delivery, and explicit retry.
+No demo conversations are seeded.
+
+- Native Android/iOS sockets use the bearer **header** at `/api/ws`; no token is
+  put in the URL. The existing API client rotates expired tokens via REST before
+  reconnecting. This transport intentionally targets the native mobile app.
+- A missing acknowledgement falls back to HTTP with the **same** random
+  `client_message_id`. Explicit server rejection is shown without an automatic
+  resend. Failed messages remain retryable in memory until sign-out.
+- While foregrounded, a 15-second refresh catches offline delivery and messages
+  sent through the backend's REST path (which does not broadcast over WS).
+  Backgrounding disconnects the socket; resume reloads history and reconnects.
+- Read markers are sent only for the open, loaded, foreground conversation, and
+  require a live socket because the current backend has no REST read endpoint.
+- Only `approved` message bodies are rendered, including inbox previews. Other
+  moderation statuses show a safety-review placeholder. Blocks clear the affected
+  conversation and disable sending. Sign-out clears chat memory and navigation.
+- No location, birthdate, device contacts, or third-party analytics were added.
+
+Run `flutter analyze`, `flutter test`, and `flutter build apk --debug`. Tests use
+in-memory fixtures and mocked HTTP/WebSocket transport, with no accounts or DB.
+CI runs the test suite before the APK build. A two-device check against an
+owner-approved test backend is still required before calling this beta-ready.
