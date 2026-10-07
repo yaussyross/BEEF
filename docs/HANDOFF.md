@@ -45,8 +45,10 @@ start here and read the docs in the order below.
   onboarding/18+ gate + auth, ~1,700 lines) and slice 2 (grid, profiles,
   intent tags, interest discovery) exist in `app/lib/` and pass CI
   compilation/analysis, but nobody has run the app on a device or emulator yet.
-- **Not built yet:** the in-app chat UI (the backend WebSocket works), the
-  block/report and privacy-settings UI, and the profile rating system
+- **Chat client increment:** inbox, conversation history, native WebSocket chat,
+  HTTP fallback, retry, moderation-safe display, and focused tests now exist.
+  Live two-device testing is still needed (see `app/README.md`).
+- **Not built yet:** the block/report and privacy-settings UI, and the profile rating system
   ("Rate this Guy" — schema, endpoint, and prompt are all unstarted).
 
 ## What to do next (priority order)
@@ -54,9 +56,8 @@ start here and read the docs in the order below.
 1. **Read the docs** in the order below (~10 minutes).
 2. **Bring the backend up locally** (`docs/RUNBOOK.md`) and confirm the
    endpoints answer. Everything needed is in `.env.example`.
-3. **Finish the Flutter client:** the chat UI (backend is done — Wire
-   `lib/screens/` to `src/ws/chat.ts` over `/api/ws`), the block/report and
-   privacy settings UI, and the "Rate this Guy" rating system (schema +
+3. **Finish the Flutter client:** verify the chat increment on two devices,
+   then add the block/report and privacy settings UI, and the "Rate this Guy" rating system (schema +
    endpoint + prompt).
 4. **Get CI green on app builds** (already green on `main`; keep it that way —
    every PR runs the Flutter compile).

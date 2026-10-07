@@ -35,11 +35,20 @@ repo; "compiles only" means CI proves it builds but no one has run it.
 | Flutter slice 1 — app foundation, onboarding, mandatory 18+ gate, register/login/auth flow (~1,700 lines) | `app/lib/{main.dart, app.dart, auth/, api/, models/, screens/onboarding/, widgets/, theme/, config/}` | **CI compiles and analyzes it.** Nobody has run it on a device/emulator; no store assets linked to the running app. |
 | Flutter slice 2 — grid, profiles, intent tags, interest discovery | `app/lib/{screens/grid_screen.dart, screens/profile_screen.dart, screens/home_screen.dart, widgets/{grid_tile.dart, discovery_filters.dart}, discovery/, models/{grid_profile.dart, intent_tag.dart, interest.dart, public_profile.dart}, api/discovery_api.dart}` | **CI compiles and analyzes it.** Same ceiling — built, not run. |
 
+## Chat client increment (feature branch)
+
+The Flutter inbox and conversation UI now exist in `app/lib/screens/` with
+`chat/`, `api/chat_api.dart`, and typed chat models. The increment includes
+WebSocket receive/send with HTTP fallback, stable retry IDs, history pagination,
+moderation-safe display, block handling, and foreground/resume behavior.
+`app/test/` adds isolated API, controller, and widget regressions; CI runs them.
+This is not a live-backend or two-device verification claim. Current validation
+results belong to the feature PR; private beta still needs a real-device pass.
+
 ## Not built (unstarted)
 
 | Item | Notes |
 |------|-------|
-| In-app chat UI | The backend WebSocket + REST fallback exist and are verified; no Flutter chat/inbox screens exist (`app/lib/` has no thread/message screens). |
 | Block/report and privacy-settings UI | Backend endpoints exist; no client UI. |
 | Profile rating system ("Rate this Guy") | 1–5 stars, unlocked after a real 5-minute chat, re-rateable (latest vote wins), aggregate shown next to username. Schema, endpoint, and client prompt are **all unstarted** — no rating tables exist in `db/migrations/`. |
 
