@@ -53,6 +53,8 @@ void main() {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Hello there');
+    // Let onChanged rebuild the initially disabled Send button before tapping.
+    await tester.pump();
     await tester.tap(find.byTooltip('Send message'));
     await tester.pumpAndSettle();
     expect(find.text('Not sent'), findsOneWidget);
