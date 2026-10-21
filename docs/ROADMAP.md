@@ -10,6 +10,13 @@ Legend: ✅ done (see STATUS.md) · ⬜ not started · 🔶 in progress
 
 ---
 
+## 2026-10-21 development slice
+
+- ✅ Locally tested waitlist recovery, working join anchor, responsive layout,
+  status announcements and reduced motion. See [evidence](REVIVAL-2026-10-21.md).
+- 🔶 Existing chat work recovered from PR #5 at `4c79f83`; not merged into
+  fetched `origin/main`. Review and compile that work before replacing it.
+
 ## Phase 1 — MVP build (in progress)
 
 ### 1.1 Backend + schema — DONE (see STATUS.md for how each is verified)
