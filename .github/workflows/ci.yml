@@ -31,23 +31,9 @@ jobs:
       - name: Build
         run: bun run build
 
-      # serve.ts uses Bun-only globals (Bun.*, import.meta.dir) and reports
-      # EXACTLY five pre-existing type errors under the site's tsconfig. We
-      # tolerate only those five and fail on anything else.
+      # Bun types are included; every TypeScript error now fails CI.
       - name: Type-check
-        run: |
-          node_modules/.bin/tsc --noEmit --pretty false > /tmp/tsc.log 2>&1 || true
-          cat /tmp/tsc.log
-          unexpected=$(grep -E 'error TS[0-9]+' /tmp/tsc.log \
-            | grep -v -E '^serve\.ts\(26,35\): error TS2339:' \
-            | grep -v -E '^serve\.ts\((44,9|46,5|61,24|70,11)\): error TS2868:' \
-            || true)
-          if [ -n "$unexpected" ]; then
-            echo "::error::Unexpected TypeScript errors found:" >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
-          echo "Type-check passed (only the 5 known serve.ts Bun-global errors tolerated)."
+        run: node_modules/.bin/tsc --noEmit --pretty false
 
   flutter:
     name: Flutter — scaffold + analyze + build apk

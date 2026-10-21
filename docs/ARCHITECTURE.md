@@ -180,10 +180,8 @@ Keep this in mind for any new enum-array read.
 
 1. `sql()` is a function — call `sql()`\`…\`` (tag the returned handle), never
    `sql`\`…\``.
-2. `tsc --noEmit` reports **exactly five pre-existing errors, all in
-   `serve.ts`** (Bun globals under the Vite tsconfig). CI tolerates only those
-   five (see `ci.yml` for the exact line filter). `src/` type-checks clean —
-   don't add new errors.
+2. `tsc --noEmit` must pass with zero errors. Official `@types/bun` 1.3.14
+   supplies server types; CI no longer filters errors in `serve.ts`.
 3. Build order in CI matters: `bun run build` **first** generates
    `src/routeTree.gen.ts` + `dist/server/server.js`, which `tsc` needs to
    resolve route types. On a clean checkout, type-checking before build fails.

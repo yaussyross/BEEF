@@ -90,15 +90,11 @@ Dev server with hot reload:
 cd backend && bun run dev    # ⚠️ command exists (vite dev on :3000); not re-run this handoff
 ```
 
-Type-check (must report **exactly the 5 known `serve.ts` Bun-global errors** and
-nothing else) — ✅ verified (5 errors, 0 unexpected):
+Type-check — must pass with zero errors (Bun definitions are included):
 
 ```bash
 cd backend
-node_modules/.bin/tsc --noEmit --pretty false > /tmp/tsc.log 2>&1 || true
-grep -E 'error TS[0-9]+' /tmp/tsc.log | grep -v -E '^serve\.ts\(26,35\): error TS2339:' \
-  | grep -v -E '^serve\.ts\((44,9|46,5|61,24|70,11)\): error TS2868:' \
-  || echo "no unexpected errors"
+node_modules/.bin/tsc --noEmit --pretty false
 ```
 
 > Build **before** type-check on a clean checkout (the build generates

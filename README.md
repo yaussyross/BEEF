@@ -67,11 +67,9 @@ Layout highlights:
 
 ### Type-check note
 
-`bunx tsc --noEmit` (or `node_modules/.bin/tsc --noEmit`) reports **exactly five
-pre-existing errors, all in `serve.ts`**, because that file uses Bun-only globals
-(`Bun.*`, `import.meta.dir`) under the site's Vite/`@types/node` tsconfig. These
-five are intentional and tolerated by CI. `src/` (including `src/ws/chat.ts`)
-type-checks clean. Do not add new type errors.
+`node_modules/.bin/tsc --noEmit` must pass with zero errors after the build.
+Official `@types/bun` definitions are pinned to 1.3.14, matching CI.
+CI no longer suppresses errors in `serve.ts`.
 
 ### Scripts
 
@@ -140,8 +138,7 @@ does not touch the live database and needs no secrets.
 
 Two jobs, deterministic, **no secrets**:
 
-1. **backend** — `bun install` → `tsc --noEmit` (fails on any error other than
-   the 5 known `serve.ts` Bun-global errors) → `bun run build`.
+1. **backend** — `bun install` → `bun run build` → `tsc --noEmit` (zero errors).
 2. **flutter** — installs Flutter (pinned stable `3.47.2`) → generates platform
    folders → `flutter pub get` → `flutter analyze` (must be clean) →
    `flutter build apk --debug`. iOS is gated by `analyze` only; an iOS build
