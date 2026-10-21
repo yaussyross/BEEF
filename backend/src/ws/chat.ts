@@ -37,8 +37,8 @@ import {
  */
 
 // --- Minimal structural types for Bun's WebSocket surface ---------------------
-// Kept local (not @types/bun) so this file type-checks clean under the site's
-// tsconfig. serve.ts carries the Bun-global type errors; this file stays clean.
+// Socket handlers use a narrow structural surface; upgrades use Bun's actual
+// contract, including the authenticated userId already supplied at the call site.
 
 export interface ChatSocket {
   data: { userId: string };
@@ -47,12 +47,7 @@ export interface ChatSocket {
   close(code?: number, reason?: string): void;
 }
 
-export interface ChatServer {
-  upgrade(
-    req: Request,
-    options?: { data?: Record<string, unknown>; headers?: Record<string, string> }
-  ): boolean;
-}
+export type ChatServer = Pick<Bun.Server<{ userId: string }>, "upgrade">;
 
 const OPEN = 1;
 

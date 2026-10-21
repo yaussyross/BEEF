@@ -1,7 +1,8 @@
 # BEEF — Status (built vs. not yet)
 
 > For the 2026-10-21 development check and waitlist repair, see
-> [revival evidence](REVIVAL-2026-10-21.md). Live/CI claims below are historical.
+> [revival evidence](REVIVAL-2026-10-21.md). The revival branch now type-checks
+> with zero errors and strict CI. Live/CI claims below are historical.
 
 Honest state of the project at handoff. "Verified" means pointed at in the repo
 and confirmed working (this handoff re-verified the backend live);
