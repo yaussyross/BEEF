@@ -10,6 +10,10 @@ The current local slice repairs waitlist navigation and failure recovery, adds
 accessible loading/error/success feedback, and preserves existing persistence
 and authentication behavior. No deployment or launch was performed.
 
+Local PostgreSQL migration and constraint tests now pass; see
+[reproducible isolated tests](db/tests/README.md). Flutter installation remains
+blocked by an HTTP 403 from its official download endpoint.
+
 See [revival evidence and limitations](docs/REVIVAL-2026-10-21.md) and the
 [mobile screenshot](artifacts/waitlist/mobile-retry.png).
 The historical snapshot below is not a fresh live-service verification.
