@@ -6,21 +6,21 @@ PASS: second migration run skips all eight files
 BEGIN
 CREATE FUNCTION
 psql:/tmp/beef-db/tests/contracts.sql:11: NOTICE:  PASS: all eight migrations tracked
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 psql:/tmp/beef-db/tests/contracts.sql:12: NOTICE:  PASS: fresh database contains no users
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 psql:/tmp/beef-db/tests/contracts.sql:13: NOTICE:  PASS: interest taxonomy seeded
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: exactly 18 accepted
@@ -32,43 +32,43 @@ psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: case-insensitive email 
 INSERT 0 1
 INSERT 0 2
 psql:/tmp/beef-db/tests/contracts.sql:56: NOTICE:  PASS: intent tags preserve text-array contract
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 psql:/tmp/beef-db/tests/contracts.sql:57: NOTICE:  PASS: privacy and verification defaults
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 INSERT 0 1
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 psql:/tmp/beef-db/tests/contracts.sql:61: NOTICE:  PASS: geography trigger uses longitude/latitude order
 UPDATE 1
-psql: assert_true 
+psql: assert_true
 -------------
- 
+
 (1 row)
 
 /tmp/beef-db/tests/contracts.sql:63: NOTICE:  PASS: clearing coordinates clears derived geography
 INSERT 0 1
 INSERT 0 2
- assert_true 
+ assert_true
 -------------
- 
+
 (1 row)
 
 psql:/tmp/beef-db/tests/contracts.sql:69: NOTICE:  PASS: both chat participants can join
 INSERT 0 1
-psql:/tmp/beef-db/tests/contracts.sql: assert_true 
+psql:/tmp/beef-db/tests/contracts.sql: assert_true
 -------------
- 
+
 (1 row)
 
 72: NOTICE:  PASS: message updates thread activity
@@ -77,7 +77,7 @@ psql:/tmp/beef-db/tests/contracts.sql:95: NOTICE:  PASS: pair deduplication
 psql:/tmp/beef-db/tests/contracts.sql:95: NOTICE:  PASS: ordered pair constraint
 DO
 ROLLBACK
-                 case                  
+                 case
 ---------------------------------------
  PASS: all synthetic users rolled back
 (1 row)
