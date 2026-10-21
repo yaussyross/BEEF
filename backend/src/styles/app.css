@@ -97,3 +97,16 @@
   -webkit-text-stroke: 2px var(--color-cream);
   color: transparent;
 }
+
+:focus-visible {
+  outline: 3px solid var(--color-berry);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

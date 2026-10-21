@@ -3,6 +3,17 @@
 **A cut above the rest.** BEEF is a free, ads-supported gay male social app for
 friends, dates, and hookups — campy, stylish, and privacy-first by design.
 
+## Development revival — 2026-10-21
+
+BEEF remains its own existing project in the RAUS portfolio; KIN is separate.
+The current local slice repairs waitlist navigation and failure recovery, adds
+accessible loading/error/success feedback, and preserves existing persistence
+and authentication behavior. No deployment or launch was performed.
+
+See [revival evidence and limitations](docs/REVIVAL-2026-10-21.md) and the
+[mobile screenshot](artifacts/waitlist/mobile-retry.png).
+The historical snapshot below is not a fresh live-service verification.
+
 This is a monorepo holding both codebases plus the database schema:
 
 ```
