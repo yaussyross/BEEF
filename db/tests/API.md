@@ -34,7 +34,7 @@ runtime is pinned by the image digest above. PostgreSQL is 17.5, PostGIS 3.5.2.
 The runner creates a uniquely named Docker `--internal` network and two
 disposable containers. Neither publishes ports or mounts host directories.
 PostgreSQL data is tmpfs-backed. Random credentials apply only to that temporary
-database; they are not read from the shell or recorded. All nine migrations are
+database; they are not read from the shell or recorded. All ten migrations are
 applied to the empty database. Bun runs inside the proxy container with an empty
 inherited environment and `--no-env-file`; the runner copies only selected code,
 built files and dependencies, never `.env`, `.run`, `.git` or workspace secrets.
@@ -51,7 +51,7 @@ The runner removes both containers, tmpfs data and the private network in
 The first implementation attempted host publishing on an internal network;
 Docker exposed no port. The final runner uses no host publishing at all.
 
-## Current coverage: twelve passing groups
+## Current coverage: fifteen passing groups
 
 - Empty migrated database reached through actual Neon HTTP queries.
 - Registration/login/refresh, JWT audience isolation, missing authentication
@@ -72,6 +72,12 @@ Docker exposed no port. The final runner uses no host publishing at all.
 - Synthetic CSAM-category report metadata (no explicit content), nontransmitting
   stub, suspension, immediate socket closure and denial of existing HTTP token,
   refresh token, new upgrade and peer history/inbox access.
+- Report retry keys: concurrent identical submissions yield one report and queue
+  row; changed payload/key misuse returns 409; reporter identity comes from auth.
+- Discarded post-commit receipt recovers the original report on retry.
+- Injected failure at the final suspension write rolls back report, queue,
+  evidence and user status; retry succeeds once. Replay after simulated human
+  reinstatement does not suspend again or duplicate evidence/review entries.
 - Human moderation ban through the real admin route and immediate revocation.
 - Direct database deletion status enforced on an existing socket's next action
   and an existing HTTP token.
@@ -79,7 +85,7 @@ Docker exposed no port. The final runner uses no host publishing at all.
   active socket, and allows access again when transport is restored.
 - Every persisted account verified to be a synthetic fixture.
 
-Latest output: [`artifacts/audit-2026-10-26/private-controls-api.txt`](../../artifacts/audit-2026-10-26/private-controls-api.txt).
+Latest output: [`artifacts/audit-2026-10-26/report-idempotency-api.txt`](../../artifacts/audit-2026-10-26/report-idempotency-api.txt).
 
 ## Limits
 

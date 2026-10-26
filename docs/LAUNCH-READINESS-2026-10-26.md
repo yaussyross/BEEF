@@ -284,3 +284,57 @@ privacy persistence, suspension/session teardown, navigation/read markers and
 small-screen/accessibility behavior. iOS compilation/signing and release checks
 remain separate. No new owner decision blocks these authored controls; an
 approved SDK/CI environment and then devices are the immediate validation needs.
+
+
+## Report retry follow-up
+
+New submissions require a `client_report_id` UUID. Migration 0010 adds a unique
+(reporter, key) pair and a hash of effective request details; historical reports
+are unchanged. Authentication/status is checked before receipt lookup. The same
+key and details return the original 201 receipt; changed details return 409.
+Concurrent first submissions converge through the unique database constraint.
+
+The report, moderation queue, evidence snapshots and existing automatic suspension
+now commit in one PostgreSQL function call. A failure rolls back all effects and
+the key claim, so retry can succeed. A replay never reapplies suspension or
+re-enqueues review after a human decision. Evidence uses built-in PostgreSQL
+SHA-256; no new extension or external service is required.
+
+Flutter creates a random UUID per report screen and retains it across retries,
+including malformed/lost responses. After the first attempt, details are frozen
+so retry cannot silently become a different report. The key is in memory only:
+leaving the screen or restarting starts a new submission, not a durable pending
+report recovery flow. This fixes retries of one submission; it does not dedupe
+intentional new submissions or provide report-abuse rate limits. No new sensitive
+persistent client storage was introduced.
+
+A crash after database commit but before the process-local socket close can leave
+an idle socket until its next action/delivery status check. Database effects stay
+committed once. The NCMEC stub still only logs; a future external delivery needs
+a durable outbox/provider idempotency before claiming reliable transmission.
+
+**Unresolved release-blocking moderation policy:** the pre-existing `csam` report
+category suspends the reported account based on an allegation before human review.
+A malicious/false report can therefore deny another adult access. Retry safety
+does not solve this abuse risk, approve the policy, or authorize transmission.
+Owner moderation responsibility, review/escalation and false-report/appeal handling
+must be resolved before real-user release. This change preserves existing policy.
+
+Push, PR creation and CI remain paused. Denied hooks/deployments metadata reads
+were not retried. Flutter analysis/tests/build remain unavailable locally; the
+new retry widget and UUID tests are authored, not executed.
+
+Verification on the report retry source: backend build and zero-error TypeScript
+passed; 32 Bun regression tests passed; all ten migrations applied and skipped on
+rerun with 41 PostgreSQL contract checks passing; all 15 real API/WebSocket groups
+passed. The expected `synthetic report rollback` error in the integration log is
+injected deliberately and asserted as HTTP 500, followed by a successful retry.
+The first implementation's extension-dependent hash failure was fixed before the
+passing rerun. Two new Flutter tests plus enhanced retry assertions are authored
+but NOT RUN (23 new control tests total across this and the prior UI step).
+Test containers, tmpfs data and networks were removed. Evidence:
+[API](../artifacts/audit-2026-10-26/report-idempotency-api.txt),
+[database](../artifacts/audit-2026-10-26/report-idempotency-db.txt),
+[regressions](../artifacts/audit-2026-10-26/report-idempotency-unit.txt).
+Migration 0010 and the updated client contract must ship together when deployment
+is separately authorized; old unkeyed report requests now receive HTTP 400.

@@ -23,6 +23,8 @@ class _SafetyScreenState extends State<SafetyScreen> {
   bool _busy = false;
   bool _disabled = false;
   bool _reported = false;
+  final _reportId = SafetyApi.newReportId();
+  bool _attemptedReport = false;
   String? _error;
 
   @override
@@ -54,9 +56,9 @@ class _SafetyScreenState extends State<SafetyScreen> {
 
   Future<void> _report() async {
     if (_busy || _disabled || _reported || _kind == null) return;
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _error = null; _attemptedReport = true; });
     try {
-      await _api!.report(widget.userId, _kind!, _reason.text, threadId: widget.threadId);
+      await _api!.report(widget.userId, _kind!, _reason.text, clientReportId: _reportId, threadId: widget.threadId);
       if (mounted) setState(() => _reported = true);
     } catch (error) {
       if (mounted) _failed(error, 'Could not confirm your report. You can try again.');
@@ -101,13 +103,14 @@ class _SafetyScreenState extends State<SafetyScreen> {
       if (_reported)
         Semantics(liveRegion: true, child: const Text('Your report was received for review.'))
       else ...[
+        if (_attemptedReport) const Text('Retries resend the same report details without creating another report.'),
         DropdownButton<ReportKind>(
           value: _kind, isExpanded: true,
           hint: const Text('Choose a reason'),
           items: ReportKind.values.map((kind) => DropdownMenuItem(value: kind, child: Text(kind.label))).toList(),
-          onChanged: _busy || _disabled ? null : (kind) => setState(() => _kind = kind),
+          onChanged: _busy || _disabled || _attemptedReport ? null : (kind) => setState(() => _kind = kind),
         ),
-        TextField(controller: _reason, enabled: !_busy && !_disabled,
+        TextField(controller: _reason, enabled: !_busy && !_disabled && !_attemptedReport,
           maxLength: 1000, minLines: 2, maxLines: 5,
           decoration: const InputDecoration(labelText: 'Details (optional)'),
         ),

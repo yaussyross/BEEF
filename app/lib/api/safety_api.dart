@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'http_client.dart';
 
 enum ReportKind {
@@ -19,6 +21,15 @@ class SafetyApi {
   SafetyApi(this._client);
   final ApiClient _client;
 
+  static String newReportId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
   Future<void> block(String userId) async {
     final data = await _client.post('/api/block', body: {'blocked_user_id': userId});
     if (data['ok'] != true || data['blocked'] != true) {
@@ -27,8 +38,9 @@ class SafetyApi {
   }
 
   Future<void> report(String userId, ReportKind kind, String reason,
-      {String? threadId}) async {
+      {required String clientReportId, String? threadId}) async {
     final data = await _client.post('/api/report', body: {
+      'client_report_id': clientReportId,
       'report_type': kind.value,
       'reason': reason.trim(),
       if (threadId == null) 'reported_user_id': userId,

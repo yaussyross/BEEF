@@ -21,6 +21,36 @@ ApiClient makeClient(Future<http.Response> Function(http.Request) handler) => Ap
   baseUrl: 'https://example.test', tokenStore: MemoryTokens(), httpClient: MockClient(handler));
 
 void main() {
+  test('report IDs are independent UUIDs with secure random version and variant', () {
+    final ids = List.generate(32, (_) => SafetyApi.newReportId());
+    expect(ids.toSet().length, ids.length);
+    for (final id in ids) {
+      expect(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$').hasMatch(id), true);
+    }
+  });
+
+  testWidgets('unconfirmed response retries the identical report identity and payload', (tester) async {
+    final requests = <String>[];
+    final client = makeClient((request) async {
+      requests.add(request.body);
+      return requests.length == 1 ? reply({'ok': true})
+        : reply({'ok': true, 'report_id': 'synthetic-confirmed'});
+    });
+    await tester.pumpWidget(MaterialApp(home: SafetyScreen(userId: 'other', api: SafetyApi(client))));
+    await tester.pumpAndSettle();
+    tester.widget<DropdownButton<ReportKind>>(find.byType(DropdownButton<ReportKind>)).onChanged!(ReportKind.other);
+    await tester.pump();
+    await tester.tap(find.text('Submit report'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your report was received for review.'), findsNothing);
+    await tester.tap(find.text('Submit report'));
+    await tester.pumpAndSettle();
+    expect(requests.length, 2);
+    expect(requests[1], requests[0]);
+    expect(find.text('Your report was received for review.'), findsOneWidget);
+    client.close();
+  });
+
   test('safety requests use existing categories, scoped targets and bearer auth', () async {
     final requests = <http.Request>[];
     final client = makeClient((request) async {
@@ -31,11 +61,11 @@ void main() {
     });
     final api = SafetyApi(client);
     await api.block('other');
-    await api.report('other', ReportKind.harassment, ' concern ');
-    await api.report('other', ReportKind.other, '', threadId: 'thread-a');
+    await api.report('other', ReportKind.harassment, ' concern ', clientReportId: 'key-a');
+    await api.report('other', ReportKind.other, '', clientReportId: 'key-b', threadId: 'thread-a');
     expect(jsonDecode(requests[0].body), {'blocked_user_id': 'other'});
-    expect(jsonDecode(requests[1].body), {'reported_user_id': 'other', 'report_type': 'harassment', 'reason': 'concern'});
-    expect(jsonDecode(requests[2].body), {'thread_id': 'thread-a', 'report_type': 'other', 'reason': ''});
+    expect(jsonDecode(requests[1].body), {'client_report_id': 'key-a', 'reported_user_id': 'other', 'report_type': 'harassment', 'reason': 'concern'});
+    expect(jsonDecode(requests[2].body), {'client_report_id': 'key-b', 'thread_id': 'thread-a', 'report_type': 'other', 'reason': ''});
     client.close();
   });
 
@@ -83,9 +113,12 @@ void main() {
 
   testWidgets('report retry retains reason and category', (tester) async {
     var calls = 0;
+    String? requestId;
     final client = makeClient((request) async {
       calls++;
-      expect(jsonDecode(request.body), {'reported_user_id': 'other', 'report_type': 'harassment', 'reason': 'Test concern'});
+      final data = jsonDecode(request.body) as Map<String, dynamic>;
+      requestId ??= data['client_report_id'] as String;
+      expect(data, {'client_report_id': requestId, 'reported_user_id': 'other', 'report_type': 'harassment', 'reason': 'Test concern'});
       if (calls == 1) throw http.ClientException('offline');
       return reply({'ok': true, 'report_id': 'synthetic-report'}, 201);
     });
@@ -98,6 +131,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Could not confirm your report. You can try again.'), findsOneWidget);
     expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'Test concern');
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
+    expect(tester.widget<DropdownButton<ReportKind>>(find.byType(DropdownButton<ReportKind>)).onChanged, isNull);
     await tester.tap(find.text('Submit report'));
     await tester.pumpAndSettle();
     expect(find.text('Your report was received for review.'), findsOneWidget);

@@ -184,3 +184,11 @@ available, and the prior denied official download was not retried or bypassed.
 The historical SDK notes earlier in this file are not a current installation.
 Run the full existing and new Flutter suite, then Android build and two-device
 QA before treating these controls as verified.
+
+Report retries now send a stable `client_report_id` UUID. Details lock after the
+first attempt; retries retain both payload and key and wait for a valid receipt.
+The key lives in the current report screen, not persistent storage. Closing it
+starts a new submission; durable cross-restart recovery is not implemented.
+Two additional tests cover UUID shape/uniqueness and malformed-response retries;
+the existing offline retry test also checks identical keys and locked details.
+These Flutter tests remain NOT RUN in this SDK-less environment.

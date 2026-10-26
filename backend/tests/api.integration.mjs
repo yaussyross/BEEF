@@ -26,15 +26,22 @@ console.log('PASS fresh migrated PostgreSQL reachable through real Neon HTTP dri
 
 const { default: handler } = await import('../dist/server/server.js');
 const { chatWebSocketHandlers, handleChatUpgrade } = await import('../src/ws/chat.ts');
+let discardNextReportReceipt = false;
 const server = Bun.serve({
   hostname: '127.0.0.1', port: 0, websocket: chatWebSocketHandlers,
-  fetch(request, server) {
+  async fetch(request, server) {
     if (new URL(request.url).pathname === '/api/ws') return handleChatUpgrade(request, server);
-    return handler.fetch(request);
+    const response = await handler.fetch(request);
+    if (discardNextReportReceipt && new URL(request.url).pathname === '/api/report' && response.status === 201) {
+      discardNextReportReceipt = false;
+      return Response.json({ error: 'synthetic_lost_receipt' }, { status: 503 });
+    }
+    return response;
   },
 });
 const sockets = [];
 async function api(path, { token, method = 'GET', body, status = 200, admin = false } = {}) {
+  if (path == '/api/report' && body && !Object.hasOwn(body, 'client_report_id')) body = { ...body, client_report_id: crypto.randomUUID() };
   const response = await fetch(new URL(path, server.url), {
     method, headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
@@ -212,6 +219,73 @@ try {
     body: { report_type: 'harassment', thread_id: ab, reason: 'Synthetic participant report' } });
   console.log('PASS in-chat report accepts a participant and rejects outsiders');
 
+  const reportTarget = await register('fictional-report-target');
+  const reportBody = { client_report_id: crypto.randomUUID(), report_type: 'other',
+    reported_user_id: reportTarget.id, reason: 'Synthetic retry fixture' };
+  await api('/api/report', { method: 'POST', body: reportBody, status: 401 });
+  await api('/api/report', { token: a.token, method: 'POST', body: { ...reportBody, client_report_id: null }, status: 400 });
+  const reportReceipts = await Promise.all(Array.from({ length: 6 }, () =>
+    api('/api/report', { token: a.token, method: 'POST', body: reportBody, status: 201 })));
+  assert.equal(new Set(reportReceipts.map(r => r.report_id)).size, 1);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM reports WHERE reporter_id = ${a.id} AND client_report_id = ${reportBody.client_report_id}`)[0].n, 1);
+  const targetProfile = (await sql`SELECT id FROM profiles WHERE user_id = ${reportTarget.id}`)[0].id;
+  assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue WHERE target_id = ${targetProfile}`)[0].n, 1);
+  for (const changed of [{ reason: 'Changed synthetic reason' }, { reported_user_id: c.id },
+    { report_type: 'csam' }, { thread_id: ab }]) {
+    const failure = await api('/api/report', { token: a.token, method: 'POST', body: { ...reportBody, ...changed }, status: 409 });
+    assert.equal(failure.error, 'report_id_conflict');
+  }
+  // Same key under another authenticated reporter is a distinct submission;
+  // an attacker-supplied reporter_id never selects another person's receipt.
+  const otherReceipt = await api('/api/report', { token: c.token, method: 'POST',
+    body: { ...reportBody, reporter_id: a.id }, status: 201 });
+  assert.notEqual(otherReceipt.report_id, reportReceipts[0].report_id);
+  assert.equal((await sql`SELECT reporter_id FROM reports WHERE id = ${otherReceipt.report_id}`)[0].reporter_id, c.id);
+  const raceId = crypto.randomUUID();
+  const raceResponses = await Promise.all(['Synthetic race one', 'Synthetic race two'].map(reason =>
+    fetch(new URL('/api/report', server.url), { method: 'POST', headers: {
+      authorization: `Bearer ${a.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ ...reportBody, client_report_id: raceId, reason }) })));
+  assert.deepEqual(raceResponses.map(r => r.status).sort(), [201, 409]);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM reports WHERE reporter_id = ${a.id} AND client_report_id = ${raceId}`)[0].n, 1);
+  console.log('PASS report concurrent identical retries, changed-key misuse and authenticated reporter isolation');
+
+  const lostBody = { ...reportBody, client_report_id: crypto.randomUUID() };
+  discardNextReportReceipt = true;
+  await api('/api/report', { token: a.token, method: 'POST', body: lostBody, status: 503 });
+  const recovered = await api('/api/report', { token: a.token, method: 'POST', body: lostBody, status: 201 });
+  const lostRows = await sql`SELECT id FROM reports WHERE reporter_id = ${a.id} AND client_report_id = ${lostBody.client_report_id}`;
+  assert.equal(lostRows.length, 1);
+  assert.equal(recovered.report_id, lostRows[0].id);
+  console.log('PASS committed report with discarded response recovers the original receipt on retry');
+
+  const failedBody = { ...reportBody, client_report_id: crypto.randomUUID(), report_type: 'csam' };
+  const queueBefore = (await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n;
+  const evidenceBefore = (await sql`SELECT count(*)::int AS n FROM report_evidence`)[0].n;
+  // Fail the LAST database side effect, after report/queue/evidence/user update.
+  await sql`CREATE FUNCTION synthetic_fail_report_profile() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.moderation_status = 'suspended' THEN RAISE EXCEPTION 'synthetic report rollback'; END IF; RETURN NEW; END; $$`;
+  await sql`CREATE TRIGGER synthetic_report_failure BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION synthetic_fail_report_profile()`;
+  await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 500 });
+  assert.equal((await sql`SELECT count(*)::int AS n FROM reports WHERE client_report_id = ${failedBody.client_report_id}`)[0].n, 0);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence`)[0].n, evidenceBefore);
+  assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'active');
+  await sql`DROP TRIGGER synthetic_report_failure ON profiles`;
+  await sql`DROP FUNCTION synthetic_fail_report_profile()`;
+  const retried = await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 201 });
+  assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'suspended');
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence WHERE report_id = ${retried.report_id}`)[0].n, 2);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore + 1);
+  // Model a later human reinstatement: replay MUST NOT suspend again.
+  await sql`UPDATE users SET status = 'active' WHERE id = ${reportTarget.id}`;
+  await sql`UPDATE profiles SET moderation_status = 'approved' WHERE user_id = ${reportTarget.id}`;
+  assert.deepEqual(await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 201 }), retried);
+  assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'active');
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence WHERE report_id = ${retried.report_id}`)[0].n, 2);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore + 1);
+  console.log('PASS report failure rolls back all effects; retry commits once and replay preserves subsequent human decisions');
+
   await api('/api/block', { token: a.token, method: 'POST', body: { blocked_user_id: b.id } });
   assert.equal(await sa.closed(), 4000);
   assert.equal(await sb.closed(), 4000);
@@ -258,6 +332,7 @@ try {
   sa2.ws.send(JSON.stringify({ type: 'read', thread_id: ac }));
   assert.equal(await sa2.closed(), 4001);
   await api('/api/me', { token: a.token, status: 403 });
+  await api('/api/report', { token: a.token, method: 'POST', body: reportBody, status: 403 });
   console.log('PASS direct status change is enforced on an existing socket next action and HTTP request');
 
   const d = await register('fictional-adult-d');

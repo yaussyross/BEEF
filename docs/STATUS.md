@@ -84,3 +84,8 @@ results belong to the feature PR; private beta still needs a real-device pass.
   `backend/publish.sh`, `go-live.sh`, `build-vercel.sh`, `vercel-entry.ts` are
   ship tooling for the old host; re-host on your own infra.
 - Owner accounts (Apple Developer, Google Play, Firebase) — not yet created.
+
+Report retry follow-up: migration 0010 and client report IDs make same-submission
+retries idempotent; database side effects commit atomically. Existing automatic
+suspension on a CSAM allegation remains a release-blocking false-report/moderation
+policy risk, not approved by this engineering fix. See the launch-readiness report.
