@@ -96,3 +96,13 @@ health/readiness, bounded shutdown, static containment and durable database
 waitlist implemented. Backend build/type-check, 32 existing regressions, five
 runtime tests, six browser checks and 18 isolated API/WS groups passed. No Flutter
 source changed; the green PR #6 result at 777700a is separate from this local head.
+
+
+Local moderation follow-up supersedes accusation-based automatic suspension:
+owner approved urgent review and targeted content containment, and selected a
+closed synthetic test. Ross intends to review; no live admin access or operational
+coverage is established. Metadata-only queue and persistent message holds are
+implemented. Specialized review/release/escalation remains a prerequisite.
+33 regressions, five runtime tests, 41 DB checks and 19 API/WS groups pass locally;
+one additional Flutter cache-invalidation test is authored but not executed.
+Remote PR #6 is still the earlier green 777700a; these changes are local only.

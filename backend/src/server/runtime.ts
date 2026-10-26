@@ -6,7 +6,8 @@ import { handleChatUpgrade, type ChatServer } from '../ws/chat';
 const migrations = ['0001_extensions.sql', '0002_enums.sql', '0003_tables.sql',
   '0004_indexes.sql', '0005_triggers.sql', '0006_seed_interests.sql',
   '0007_chat_thread_pair_key.sql', '0008_moderation.sql',
-  '0009_profile_ratings.sql', '0010_report_idempotency.sql'];
+  '0009_profile_ratings.sql', '0010_report_idempotency.sql',
+  '0011_report_content_containment.sql'];
 
 export async function databaseReady(signal: AbortSignal): Promise<boolean> {
   const rows = await sql().query(`SELECT

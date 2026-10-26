@@ -17,6 +17,7 @@ applied in filename order.
 | `0008_moderation.sql` | Moderation content states (`photo_status.blurred`, `chat_messages.moderation_status`) + NCMEC `report_evidence` snapshot |
 | `0009_profile_ratings.sql` | One 1–5-star vote per pair, re-rating, mutual five-minute message-span eligibility and write-time guard |
 | `0010_report_idempotency.sql` | Reporter-scoped retry keys and atomic report/queue/evidence/suspension transaction |
+| `0011_report_content_containment.sql` | Owner-approved urgent metadata review, specific-message holds, no accusation-based suspension and restoration guard |
 
 ## Running
 

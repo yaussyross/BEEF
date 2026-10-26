@@ -11,9 +11,9 @@ const TARGET_TYPES: readonly string[] = ["profile", "photo", "message"];
 /**
  * GET /api/moderation/queue  (internal admin — X-Moderation-Key header)
  *
- * List the moderation queue for human review. Returns a snapshot of the flagged
- * content (bio / message body / photo storage key) so a reviewer can decide
- * without a second lookup. NEVER returns any location data.
+ * List urgent items first using metadata only. No reason text, bio, message
+ * body, photo storage key, evidence or location is exposed. Specialized review
+ * procedures and access are not implemented by this endpoint.
  *
  * Query params:
  *   status       = pending (default) | in_review | approved | rejected

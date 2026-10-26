@@ -40,6 +40,7 @@ class ChatController extends ChangeNotifier {
   final _historyAnchors = <String, String?>{};
   final _blockedUsers = <String>{};
   final _blockedThreads = <String>{};
+  final _containedMessages = <String>{};
   Completer<ChatMessage>? _ack;
   String? _ackClientId;
 
@@ -131,6 +132,7 @@ class ChatController extends ChangeNotifier {
       }
       _threads = result
           .where((t) => !_blockedUsers.contains(t.otherUserId))
+          .map(_scrubThread)
           .toList();
     } catch (error) {
       if (!_disposed) {
@@ -383,6 +385,7 @@ class ChatController extends ChangeNotifier {
   }
 
   void _merge(ChatMessage message) {
+    if (_containedMessages.contains(message.id)) message = message.contained();
     if (_blockedThreads.contains(message.threadId)) {
       return;
     }
@@ -399,6 +402,15 @@ class ChatController extends ChangeNotifier {
       final time = b.createdAt.compareTo(a.createdAt);
       return time == 0 ? b.id.compareTo(a.id) : time;
     });
+  }
+
+  ChatThread _scrubThread(ChatThread thread) {
+    final last = thread.lastMessage;
+    if (last == null || !_containedMessages.contains(last.id)) return thread;
+    return ChatThread(id: thread.id, otherUserId: thread.otherUserId,
+      displayName: thread.displayName, photoVerificationStatus: thread.photoVerificationStatus,
+      lastMessage: last.contained(), unreadCount: thread.unreadCount,
+      lastMessageAt: thread.lastMessageAt);
   }
 
   void _onEvent(Map<String, dynamic> event) {
@@ -431,6 +443,14 @@ class ChatController extends ChangeNotifier {
             _markRead();
           }
           unawaited(refreshInbox());
+          break;
+        case 'content_contained':
+          final messageId = event['message_id'] as String;
+          _containedMessages.add(messageId);
+          for (final key in _history.keys.toList()) {
+            _history[key] = _history[key]!.map((m) => m.id == messageId ? m.contained() : m).toList();
+          }
+          _threads = _threads.map(_scrubThread).toList();
           break;
         case 'read_ack':
           unawaited(refreshInbox());

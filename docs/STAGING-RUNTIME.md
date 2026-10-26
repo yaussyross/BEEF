@@ -31,7 +31,7 @@ must stop/restart their own service explicitly. Old go-live tooling is not the
 staging setup path.
 
 GET/HEAD `/healthz` returns 200 for a responsive process, independent of the DB.
-GET/HEAD `/readyz` returns 200 only when required migrations 0001–0010 are recorded
+GET/HEAD `/readyz` returns 200 only when required migrations 0001–0011 are recorded
 and report/waitlist schema is queryable. DB failure, missing migration, timeout
 or shutdown yields 503. Responses contain generic status only, are not cached,
 and expose no address, credential, database error or migration detail. Other
@@ -80,3 +80,11 @@ applied all ten migrations to a fresh disposable database; no schema migration
 was added by this change. Test containers/network and browser temporary files
 were removed. No new CI run or Flutter checks were needed for unchanged Flutter
 source. The remote PR remains unchanged pending review of this local work.
+
+
+Moderation follow-up now requires migration 0011 for readiness. Current local
+checks additionally pass 33 safety regressions, five runtime tests, 41 database
+checks over eleven migrations and 19 real API/WS groups. The earlier six browser
+checks still apply to unchanged waitlist UI. A new Flutter containment-cache test
+is authored but not run locally. See CLOSED-TEST-ACCEPTANCE.md for the selected
+synthetic-only boundary and pending approvals; this source is not deployed.

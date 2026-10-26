@@ -197,3 +197,13 @@ Keep this in mind for any new enum-array read.
 The landing form now posts to `POST /api/waitlist`: validated addresses persist in
 `waitlist_emails`, with case-insensitive unique deduplication. Database failures
 return 503 and never fall back to a host-local file. No email or account is created.
+
+
+Owner-approved local moderation follow-up (migration 0011): severe accusations
+queue urgent human review; specifically identified messages get durable holds.
+No allegation automatically suspends an account. Ordinary queue responses are
+metadata-only (no reason/content/media URLs/evidence), and ordinary review cannot
+resolve urgent items or release holds. Specialized reviewer decisions, evidence
+access and escalation remain to be specified; Ross is the intended reviewer,
+not a provisioned administrator. See CLOSED-TEST-ACCEPTANCE.md. Earlier automatic
+suspension descriptions in this document describe superseded source behavior.

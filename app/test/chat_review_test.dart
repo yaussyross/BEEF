@@ -14,6 +14,23 @@ class _OfflineSocket extends FakeChatSocket {
 }
 
 void main() {
+  test('containment clears cached content and late approved events cannot restore it', () async {
+    final api = FakeChatApi();
+    final socket = FakeChatSocket();
+    final chat = ChatController(api: api, userId: 'me', socket: socket);
+    addTearDown(chat.dispose);
+    api.onHistory = (_, __) async => ChatHistory([ChatMessage.fromJson(messageJson())], null);
+    await chat.openThread(testThread);
+    final original = chat.messages.single;
+    socket.emit({'type': 'content_contained', 'message_id': original.id, 'thread_id': original.threadId});
+    expect(chat.messages.single.body, '');
+    expect(chat.messages.single.isVisible, false);
+    socket.emit({'type': 'message', 'message': messageJson()});
+    expect(chat.messages.single.body, '');
+    expect(chat.messages.single.isVisible, false);
+    expect(chat.unavailable, false);
+  });
+
   test(
     'a blocked history response notifies the visible unavailable state',
     () async {

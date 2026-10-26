@@ -290,32 +290,76 @@ try {
   assert.equal(recovered.report_id, lostRows[0].id);
   console.log('PASS committed report with discarded response recovers the original receipt on retry');
 
-  const failedBody = { ...reportBody, client_report_id: crypto.randomUUID(), report_type: 'csam' };
+  const reportThread = (await api('/api/threads', { token: a.token, method: 'POST', status: 201,
+    body: { other_user_id: reportTarget.id } })).thread.id;
+  const harmless = (await api(`/api/threads/${reportThread}/messages`, { token: reportTarget.token, method: 'POST', status: 201,
+    body: { client_message_id: 'synthetic-unaffected', body: 'Synthetic ordinary conversation' } })).message;
+  const contentMarker = 'Synthetic evidence marker for containment testing';
+  const identified = (await api(`/api/threads/${reportThread}/messages`, { token: reportTarget.token, method: 'POST', status: 201,
+    body: { client_message_id: 'synthetic-contained', body: contentMarker } })).message;
+  const failedBody = { client_report_id: crypto.randomUUID(), message_id: identified.id,
+    reason: 'Synthetic report reason marker', report_type: 'csam' };
   const queueBefore = (await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n;
   const evidenceBefore = (await sql`SELECT count(*)::int AS n FROM report_evidence`)[0].n;
-  // Fail the LAST database side effect, after report/queue/evidence/user update.
-  await sql`CREATE FUNCTION synthetic_fail_report_profile() RETURNS trigger LANGUAGE plpgsql AS $$
-    BEGIN IF NEW.moderation_status = 'suspended' THEN RAISE EXCEPTION 'synthetic report rollback'; END IF; RETURN NEW; END; $$`;
-  await sql`CREATE TRIGGER synthetic_report_failure BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION synthetic_fail_report_profile()`;
+  // Fail the last database effect, after the report/queue/evidence/hold inserts.
+  await sql`CREATE FUNCTION synthetic_fail_containment() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.moderation_status = 'pending' THEN RAISE EXCEPTION 'synthetic containment rollback'; END IF; RETURN NEW; END; $$`;
+  await sql`CREATE TRIGGER synthetic_report_failure BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION synthetic_fail_containment()`;
   await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 500 });
   assert.equal((await sql`SELECT count(*)::int AS n FROM reports WHERE client_report_id = ${failedBody.client_report_id}`)[0].n, 0);
   assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore);
   assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence`)[0].n, evidenceBefore);
-  assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'active');
-  await sql`DROP TRIGGER synthetic_report_failure ON profiles`;
-  await sql`DROP FUNCTION synthetic_fail_report_profile()`;
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_content_holds WHERE message_id = ${identified.id}`)[0].n, 0);
+  assert.equal((await sql`SELECT moderation_status FROM chat_messages WHERE id = ${identified.id}`)[0].moderation_status, 'approved');
+  await sql`DROP TRIGGER synthetic_report_failure ON chat_messages`;
+  await sql`DROP FUNCTION synthetic_fail_containment()`;
+  const targetSocket = await connect(reportTarget.token);
   const retried = await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 201 });
-  assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'suspended');
-  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence WHERE report_id = ${retried.report_id}`)[0].n, 2);
-  assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore + 1);
-  // Model a later human reinstatement: replay MUST NOT suspend again.
-  await sql`UPDATE users SET status = 'active' WHERE id = ${reportTarget.id}`;
-  await sql`UPDATE profiles SET moderation_status = 'approved' WHERE user_id = ${reportTarget.id}`;
-  assert.deepEqual(await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 201 }), retried);
+  assert.deepEqual(await targetSocket.event('content_contained'), { type: 'content_contained', message_id: identified.id, thread_id: reportThread });
   assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'active');
-  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence WHERE report_id = ${retried.report_id}`)[0].n, 2);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence WHERE report_id = ${retried.report_id}`)[0].n, 3);
+  const evidence = await sql`SELECT payload, content_hash FROM report_evidence WHERE report_id = ${retried.report_id} AND kind = 'message_body'`;
+  assert.equal(evidence[0].payload, contentMarker);
   assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore + 1);
-  console.log('PASS report failure rolls back all effects; retry commits once and replay preserves subsequent human decisions');
+  const historyHeld = (await api(`/api/threads/${reportThread}/messages`, { token: a.token })).messages;
+  assert.equal(historyHeld.find(m => m.id === identified.id).body, '');
+  assert.equal(historyHeld.find(m => m.id === identified.id).moderation_status, 'pending');
+  assert.equal(historyHeld.find(m => m.id === harmless.id).body, 'Synthetic ordinary conversation');
+  const inboxHeld = (await api('/api/threads', { token: a.token })).threads.find(t => t.id === reportThread);
+  assert.equal(inboxHeld.last_message.body, '');
+  const duplicateHeld = await api(`/api/threads/${reportThread}/messages`, { token: reportTarget.token, method: 'POST',
+    body: { client_message_id: 'synthetic-contained', body: contentMarker } });
+  assert.equal(duplicateHeld.message.body, '');
+  targetSocket.ws.send(JSON.stringify({ type: 'send', thread_id: reportThread, client_message_id: 'synthetic-contained', body: contentMarker }));
+  assert.equal((await targetSocket.event('ack')).message.body, '');
+  await api('/api/moderation/queue', { status: 401 });
+  await api('/api/moderation/queue', { token: a.token, status: 401 });
+  const metadata = await api('/api/moderation/queue?include_content=true', { admin: true });
+  assert.equal(metadata.items[0].priority, 'urgent');
+  const heldItem = metadata.items.find(item => item.report_id === retried.report_id);
+  assert.equal(heldItem.content_held, true);
+  assert.equal(heldItem.target_detail, null);
+  assert.equal(heldItem.reason, null);
+  assert.ok(!JSON.stringify(metadata).includes(contentMarker));
+  assert.ok(!JSON.stringify(metadata).includes(failedBody.reason));
+  for (const decision of ['approve', 'reject', 'blur', 'ban']) {
+    assert.equal((await api('/api/moderation/review', { method: 'POST', admin: true, status: 409,
+      body: { queue_id: heldItem.id, decision } })).error, 'specialized_review_required');
+  }
+  // An unrelated normal queue cannot bypass the database restoration guard.
+  const normalQueue = await sql`INSERT INTO moderation_queue (target_type, target_id, source, status)
+    VALUES ('message', ${identified.id}, 'auto', 'pending') RETURNING id`;
+  await api('/api/moderation/review', { method: 'POST', admin: true, status: 409,
+    body: { queue_id: normalQueue[0].id, decision: 'approve' } });
+  await assert.rejects(sql`UPDATE chat_messages SET moderation_status = 'approved' WHERE id = ${identified.id}`,
+    err => err.constraint === 'message_safety_hold');
+  await sql`UPDATE chat_messages SET moderation_status = 'rejected' WHERE id = ${identified.id}`;
+  assert.deepEqual(await api('/api/report', { token: a.token, method: 'POST', body: failedBody, status: 201 }), retried);
+  assert.equal((await sql`SELECT moderation_status FROM chat_messages WHERE id = ${identified.id}`)[0].moderation_status, 'rejected');
+  assert.equal((await sql`SELECT status FROM users WHERE id = ${reportTarget.id}`)[0].status, 'active');
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_evidence WHERE report_id = ${retried.report_id}`)[0].n, 3);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM moderation_queue`)[0].n, queueBefore + 2);
+  console.log('PASS atomic specific-message containment, restricted evidence, safe metadata queue, no account suspension and replay/restoration guards');
 
   await api('/api/block', { token: a.token, method: 'POST', body: { blocked_user_id: b.id } });
   assert.equal(await sa.closed(), 4000);
@@ -329,9 +373,25 @@ try {
   console.log('PASS REST block closes sockets across bundled modules and prevents both directions of access');
 
   const sb2 = await connect(b.token);
-  // Synthetic report metadata only: no images or explicit/evidence content.
+  // Account/thread allegations without an identified message queue urgently
+  // but do not suspend an account, hide a whole profile or close chat sockets.
+  const allegation = await api('/api/report', { token: a.token, method: 'POST', status: 201,
+    body: { report_type: 'csam', reported_user_id: b.id, reason: 'Synthetic metadata only' } });
+  await api('/api/me', { token: b.token });
+  await api(`/api/profile/${b.id}`, { token: a.token });
+  sb2.ws.send(JSON.stringify({ type: 'read', thread_id: ab }));
+  await sb2.event('read_ack');
+  const urgent = (await api('/api/moderation/queue', { admin: true })).items.find(q => q.report_id === allegation.report_id);
+  assert.equal(urgent.priority, 'urgent');
+  assert.equal(urgent.content_held, false);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM report_content_holds WHERE report_id = ${allegation.report_id}`)[0].n, 0);
   await api('/api/report', { token: a.token, method: 'POST', status: 201,
-    body: { report_type: 'csam', reported_user_id: b.id, reason: 'Synthetic integration fixture; no real content' } });
+    body: { report_type: 'csam', thread_id: ab, reason: 'Synthetic thread-only allegation' } });
+  await api('/api/me', { token: b.token });
+  console.log('PASS account/thread-only severe allegations queue urgent review without automatic account or conversation restriction');
+  // Independently verify actual account-status enforcement is preserved.
+  await sql`UPDATE users SET status = 'suspended' WHERE id = ${b.id}`;
+  sb2.ws.send(JSON.stringify({ type: 'read', thread_id: ab }));
   assert.equal(await sb2.closed(), 4001);
   await api('/api/me', { token: b.token, status: 403 });
   await api('/api/profile', { token: b.token, method: 'PUT', status: 403,
@@ -346,7 +406,7 @@ try {
   await api(ratingPath, { token: a.token, method: 'POST', status: 404, body: { stars: 2 } });
   await api(`/api/threads/${ab}/messages`, { token: a.token, status: 404 });
   assert.equal((await api('/api/threads', { token: a.token })).threads.some(thread => thread.id === ab), false);
-  console.log('PASS synthetic report suspension closes sockets and rejects existing tokens/refresh/upgrade/chat');
+  console.log('PASS independently applied suspension rejects existing socket actions, tokens, refresh, upgrade and chat');
 
   const sc = await connect(c.token);
   const report = await api('/api/report', { token: a.token, method: 'POST', status: 201,

@@ -3,17 +3,16 @@ import { sql } from "~/db";
 import { isUuid, requireAuth } from "~/lib/auth";
 import { otherParticipant } from "~/lib/chat";
 import { errorResponse, json, readJson } from "~/lib/http";
-import { submitNcmecReport } from "~/lib/ncmec";
-import { dropSocketsForUser } from "~/ws/registry";
+import { notifyContentContained } from "~/ws/registry";
 
 /**
  * /api/report  (protected)
  *
  * Report intake. Atomically records a report, review queue entry and existing
- * CSAM evidence/suspension effects. Replays return the original receipt without
+ * severe-report evidence and specific-message containment effects. Replays return the original receipt without
  * repeating those effects. No AI classifier or external NCMEC transmission runs.
- * Automatic suspension on an allegation remains an unresolved release-blocking
- * moderation/false-report risk; this retry fix does not approve that policy.
+ * Account/thread-only allegations queue urgent review without account suspension.
+ * Specialized review/release and external escalation remain operational gates.
  *
  * Body:
  *   {
@@ -95,7 +94,7 @@ export const Route = createFileRoute("/api/report")({
           }
 
           // A single PostgreSQL call commits the report, queue, evidence and
-          // existing suspension policy together. Unique reporter/key scope also
+          // approved specific-message containment together. Unique reporter/key scope also
           // serializes concurrent retries; a rollback leaves no partial claim.
           const rows = await sql()`SELECT * FROM submit_report_once(
             ${userId}::uuid, ${clientReportId}::uuid, ${requestHash}::text,
@@ -104,11 +103,10 @@ export const Route = createFileRoute("/api/report")({
             ${reportType}::report_type, ${reason}::text, ${isCsam}::boolean)`;
           const saved = rows[0];
           if (!saved) throw new Error("Report transaction returned no receipt");
-          if (saved.created && isCsam) {
-            dropSocketsForUser(resolved.reportedUserId);
-            // Nontransmitting stub only. Future external delivery requires a
-            // durable outbox/provider idempotency, not this post-commit call.
-            await submitNcmecReport(String(saved.report_id));
+          if (saved.created && isCsam && resolved.messageId && resolved.threadId) {
+            // Metadata only: clear connected clients' cached copy; no content,
+            // imagery, reporter identity or external notification is emitted.
+            notifyContentContained([userId, resolved.reportedUserId], resolved.messageId, resolved.threadId);
           }
           return receipt(String(saved.report_id), isCsam);
         } catch (err) {

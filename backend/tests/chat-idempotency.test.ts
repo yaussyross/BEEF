@@ -21,7 +21,7 @@ function duplicate(storedThread: string) {
     [], // participation path: no block
     [], // send path: no block
     [], // duplicate insert
-    [{ id: "stored-message", thread_id: storedThread, sender_id: "sender", body: "private original" }],
+    [{ id: "stored-message", thread_id: storedThread, sender_id: "sender", body: "private original", moderation_status: "approved" }],
   ];
   return sendMessage("sender", {
     threadId: "current-thread", clientMessageId: "reused-id", body: "hello",
@@ -48,7 +48,7 @@ const { requireAuth, signAccessToken } = await import('../src/lib/auth');
 const { getThreadHistory, listThreads, markThreadRead } = await import('../src/lib/chat');
 const { chatWebSocketHandlers, handleChatUpgrade } = await import('../src/ws/chat');
 const { hub, dropSocketsForUser } = await import('../src/ws/registry');
-const { disableAccountForCsam } = await import('../src/lib/ncmec');
+const { notifyContentContained } = await import('../src/ws/registry');
 const { applyReviewDecision } = await import('../src/lib/moderation');
 const { errorResponse } = await import('../src/lib/http');
 const originalSecret = process.env.JWT_SECRET;
@@ -203,15 +203,24 @@ test('idle recipient disabled between persistence and delivery receives nothing'
   expect(recipient.closed).toContain(4001);
 });
 
-test('suspension closes all sockets even if the later profile update fails', async () => {
+test('content containment notification contains IDs only and never closes accounts', () => {
   const first = socket();
-  const second = socket();
-  hub().set('sender', new Set([first, second]));
-  results = [[], new Error('profile update failed')];
-  await expect(disableAccountForCsam('sender')).rejects.toThrow('profile update failed');
-  expect(first.closed).toContain(4001);
-  expect(second.closed).toContain(4001);
-  expect(hub().has('sender')).toBe(false);
+  const second = socket('recipient');
+  hub().set('sender', new Set([first]));
+  hub().set('recipient', new Set([second]));
+  notifyContentContained(['sender', 'recipient'], 'message-id', 'thread-id');
+  expect(JSON.parse(first.sent[0])).toEqual({ type: 'content_contained', message_id: 'message-id', thread_id: 'thread-id' });
+  expect(second.sent).toEqual(first.sent);
+  expect(first.closed).toEqual([]);
+  expect(second.closed).toEqual([]);
+});
+
+test('ordinary review cannot resolve urgent reports or held content', async () => {
+  for (const flags of [{ priority: 'urgent' }, { content_held: true }]) {
+    results = [[{ id: 'queue', target_type: 'message', target_id: 'message', status: 'pending', ...flags }]];
+    await expect(applyReviewDecision('queue', 'approve')).rejects.toMatchObject({ code: 'specialized_review_required' });
+    expect(results).toHaveLength(0);
+  }
 });
 
 test('human ban closes existing sockets', async () => {

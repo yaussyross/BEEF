@@ -102,3 +102,13 @@ Local staging follow-up (not pushed): see [STAGING-RUNTIME.md](STAGING-RUNTIME.m
 Explicit bind/configuration replaces sandbox port takeover; health/readiness and
 bounded shutdown are implemented; waitlist storage now uses PostgreSQL. Remote
 PR #6 remains green at 777700a; its CI does not cover this local follow-up yet.
+
+
+Local moderation follow-up supersedes accusation-based automatic suspension:
+owner approved urgent review and targeted content containment, and selected a
+closed synthetic test. Ross intends to review; no live admin access or operational
+coverage is established. Metadata-only queue and persistent message holds are
+implemented. Specialized review/release/escalation remains a prerequisite.
+33 regressions, five runtime tests, 41 DB checks and 19 API/WS groups pass locally;
+one additional Flutter cache-invalidation test is authored but not executed.
+Remote PR #6 is still the earlier green 777700a; these changes are local only.

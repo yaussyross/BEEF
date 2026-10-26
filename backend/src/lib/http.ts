@@ -50,6 +50,9 @@ export function errorResponse(err: unknown): Response {
       { status: 403 }
     );
   }
+  if ((err as { constraint?: string })?.constraint === 'message_safety_hold') {
+    return json({ error: 'specialized_review_required', message: 'This content requires specialized safety review.' }, { status: 409 });
+  }
   // Don't leak internal error details.
   console.error("[api] unhandled error:", err);
   return json({ error: "internal", message: "Something went wrong." }, { status: 500 });

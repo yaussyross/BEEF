@@ -338,3 +338,45 @@ Test containers, tmpfs data and networks were removed. Evidence:
 [regressions](../artifacts/audit-2026-10-26/report-idempotency-unit.txt).
 Migration 0010 and the updated client contract must ship together when deployment
 is separately authorized; old unkeyed report requests now receive HTTP 400.
+
+
+## Approved moderation and closed-test follow-up
+
+Owner approved urgent review and specifically reported content containment instead
+of account suspension solely on an accusation, and stated “ill review” on October
+26 at 19:08:38 UTC. At 19:11:41 UTC the owner chose the closed synthetic test option.
+These decisions supersede the earlier unresolved choice of automatic-suspension
+policy; implementation and operational limits remain distinct.
+
+Migration 0011 replaces the report transaction's accusation-based suspension with
+urgent review plus a persistent hold on an explicitly identified message. User-
+and thread-only allegations queue urgent review without whole-account/profile/
+conversation restriction. Existing historical suspensions are not automatically
+reversed. Historical severe message reports gain holds when migration is applied.
+No live migration was run. The current API has message-specific targeting, not
+photo-specific targeting; no new imagery flow or evidence viewer was invented.
+
+Ordinary moderation listings now fetch only metadata, not raw reason/body/bio/
+photo storage keys. Severe items/held content cannot be resolved through ordinary
+review; a database trigger prevents approval through another queue. Restricted
+evidence remains server-side with existing hashes. No external report is sent.
+New report retries remain atomic/idempotent and do not undo later review state.
+
+Server chat responses redact nonapproved bodies. Metadata-only containment events
+scrub connected Flutter history/inbox copies, with a client guard against a late
+approved event restoring the same message. The new client test is NOT RUN locally;
+the earlier green PR's 52 Flutter tests do not validate this newer client change.
+Already delivered/offline copies cannot be recalled; distributed/in-flight atomic
+cancellation is not claimed. Specialized hold release, reviewer identity auditing,
+decision criteria, review deadlines and external escalation are still unspecified.
+Ross is the intended reviewer, not a granted admin credential or staffing plan.
+
+Latest local validation: backend build/TypeScript, 33 safety regressions, five
+runtime tests, 41 database checks with eleven migrations and 19 real API/WebSocket
+groups passed. Injected containment failure returns expected HTTP 500, rolls back
+all effects and succeeds on retry. All fixtures are neutral synthetic data, with
+no images. Temporary database containers and network were removed.
+
+Deliverables: testing/closed-test-fixtures.json and CLOSED-TEST-ACCEPTANCE.md.
+No invitations, secrets, host provisioning, deployment or new persistent access.
+The remote draft PR remains green at 777700a and is not updated by this local work.

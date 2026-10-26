@@ -249,7 +249,7 @@ export async function sendMessage(
     if (screen.verdict === "flag") {
       await enqueueModeration("message", first.id, "auto", screen.reasons.join(","));
     }
-    return { message: first, recipientId, created: true };
+    return { message: publicMessage(first), recipientId, created: true };
   }
 
   // Duplicate client_message_id → return the already-stored row (idempotent).
@@ -267,7 +267,7 @@ export async function sendMessage(
   if (message.thread_id !== thread.id) {
     throw new ChatError(409, "client_message_id_conflict", "Use a new client_message_id for a different conversation.");
   }
-  return { message, recipientId, created: false };
+  return { message: publicMessage(message), recipientId, created: false };
 }
 
 export interface HistoryResult {
@@ -323,7 +323,7 @@ export async function getThreadHistory(
   const nextCursor =
     hasMore && page.length > 0 ? `${page[page.length - 1].created_at}|${page[page.length - 1].id}` : null;
 
-  return { messages: page, next_cursor: nextCursor };
+  return { messages: page.map(publicMessage), next_cursor: nextCursor };
 }
 
 /** Mark a thread read up to now for a participant (updates last_read_at). */
@@ -408,7 +408,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
         : {
             id: r.last_msg_id,
             sender_id: r.last_msg_sender_id ?? "",
-            body: r.last_msg_body ?? "",
+            body: r.last_msg_moderation_status === "approved" ? r.last_msg_body ?? "" : "",
             moderation_status: r.last_msg_moderation_status ?? "approved",
             created_at: r.last_msg_created_at ?? "",
           },
@@ -416,4 +416,9 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
     last_read_at: r.last_read_at,
     unread_count: Number(r.unread_count) || 0,
   }));
+}
+
+/** Raw hidden content stays server-side, even if a client ignores moderation UI. */
+function publicMessage(message: StoredMessage): StoredMessage {
+  return message.moderation_status === 'approved' ? message : { ...message, body: '' };
 }

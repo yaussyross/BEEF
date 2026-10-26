@@ -34,6 +34,11 @@ class ChatMessage {
     createdAt: DateTime.parse(json['created_at'] as String),
   );
 
+  ChatMessage contained() => ChatMessage(
+    id: id, threadId: threadId, senderId: senderId, clientMessageId: clientMessageId,
+    body: '', moderationStatus: 'pending', createdAt: createdAt, delivery: delivery,
+  );
+
   ChatMessage withDelivery(MessageDelivery value, {String? error}) =>
       ChatMessage(
         id: id,

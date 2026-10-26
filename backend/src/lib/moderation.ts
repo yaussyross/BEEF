@@ -476,120 +476,34 @@ export interface QueueItem {
   reason: string | null;
   status: string;
   created_at: string;
-  /** Human-readable snapshot of the offending content (never any location). */
+  /** Always null: ordinary queue responses are metadata-only. */
   target_detail: string | null;
   /** Owning user id where resolvable — lets the reviewer ban. */
   target_user_id: string | null;
+  priority: 'normal' | 'urgent';
+  report_id: string | null;
+  report_type: string | null;
+  content_held: boolean;
 }
 
-function truncate(value: string, max = 240): string {
-  return value.length > max ? `${value.slice(0, max)}…` : value;
-}
-
-/** List the moderation queue, enriched with a snapshot of the flagged content. */
+/** Metadata-only queue: never fetch raw content, reason text, URLs or storage keys. */
 export async function listModerationQueue(options: {
-  status?: string;
-  targetType?: ModerationTargetType;
-  limit?: number;
-  offset?: number;
+  status?: string; targetType?: ModerationTargetType; limit?: number; offset?: number;
 }): Promise<QueueItem[]> {
-  const status = options.status ?? "pending";
+  const status = options.status ?? 'pending';
   const limit = Math.min(Math.max(1, options.limit ?? 50), 100);
   const offset = Math.max(0, options.offset ?? 0);
   const targetType = options.targetType ?? null;
-
-  const rows = (await sql()`SELECT id, target_type, target_id, source, reason, status,
-                                created_at::text AS created_at
-                         FROM moderation_queue
-                         WHERE status = ${status}
-                           AND (${targetType}::moderation_target IS NULL OR target_type = ${targetType})
-                         ORDER BY created_at ASC
-                         LIMIT ${limit} OFFSET ${offset}`) as unknown as {
-    id: string;
-    target_type: string;
-    target_id: string;
-    source: string;
-    reason: string | null;
-    status: string;
-    created_at: string;
-  }[];
-
-  if (rows.length === 0) return [];
-
-  const profileIds = rows.filter((r) => r.target_type === "profile").map((r) => r.target_id);
-  const photoIds = rows.filter((r) => r.target_type === "photo").map((r) => r.target_id);
-  const messageIds = rows.filter((r) => r.target_type === "message").map((r) => r.target_id);
-
-  const profileDetail = new Map<string, { detail: string; userId: string | null }>();
-  if (profileIds.length > 0) {
-    const pr = (await sql()`SELECT id, user_id::text AS user_id,
-                                   COALESCE(display_name, '') AS display_name,
-                                   COALESCE(bio, '') AS bio
-                            FROM profiles
-                            WHERE id = ANY(${profileIds}::uuid[])`) as unknown as {
-      id: string;
-      user_id: string;
-      display_name: string;
-      bio: string;
-    }[];
-    for (const p of pr) {
-      profileDetail.set(p.id, {
-        detail: truncate([p.display_name, p.bio].filter(Boolean).join(" — ") || "(no bio)"),
-        userId: p.user_id,
-      });
-    }
-  }
-
-  const photoDetail = new Map<string, { detail: string; userId: string | null }>();
-  if (photoIds.length > 0) {
-    const phr = (await sql()`SELECT pp.id, pp.storage_key, pp.status,
-                                    p.user_id::text AS user_id
-                             FROM profile_photos pp
-                             JOIN profiles p ON p.id = pp.profile_id
-                             WHERE pp.id = ANY(${photoIds}::uuid[])`) as unknown as {
-      id: string;
-      storage_key: string;
-      status: string;
-      user_id: string;
-    }[];
-    for (const ph of phr) {
-      photoDetail.set(ph.id, { detail: `photo ${ph.storage_key} (status: ${ph.status})`, userId: ph.user_id });
-    }
-  }
-
-  const messageDetail = new Map<string, { detail: string; userId: string | null }>();
-  if (messageIds.length > 0) {
-    const mr = (await sql()`SELECT id, sender_id::text AS sender_id, body
-                           FROM chat_messages
-                           WHERE id = ANY(${messageIds}::uuid[])`) as unknown as {
-      id: string;
-      sender_id: string;
-      body: string;
-    }[];
-    for (const m of mr) {
-      messageDetail.set(m.id, { detail: truncate(m.body), userId: m.sender_id });
-    }
-  }
-
-  return rows.map((r) => {
-    const lookup =
-      r.target_type === "profile"
-        ? profileDetail.get(r.target_id)
-        : r.target_type === "photo"
-          ? photoDetail.get(r.target_id)
-          : messageDetail.get(r.target_id);
-    return {
-      id: r.id,
-      target_type: r.target_type,
-      target_id: r.target_id,
-      source: r.source,
-      reason: r.reason,
-      status: r.status,
-      created_at: r.created_at,
-      target_detail: lookup?.detail ?? null,
-      target_user_id: lookup?.userId ?? null,
-    };
-  });
+  const rows = await sql()`SELECT q.id, q.target_type, q.target_id, q.source, q.status,
+    q.created_at::text AS created_at, q.priority, q.report_id, r.report_type,
+    CASE WHEN q.target_type = 'profile' THEN (SELECT user_id FROM profiles WHERE id = q.target_id)
+      WHEN q.target_type = 'photo' THEN (SELECT p.user_id FROM profile_photos pp JOIN profiles p ON p.id = pp.profile_id WHERE pp.id = q.target_id)
+      WHEN q.target_type = 'message' THEN (SELECT sender_id FROM chat_messages WHERE id = q.target_id) END AS target_user_id,
+    EXISTS (SELECT 1 FROM report_content_holds h WHERE q.target_type = 'message' AND h.message_id = q.target_id) AS content_held
+    FROM moderation_queue q LEFT JOIN reports r ON r.id = q.report_id
+    WHERE q.status = ${status} AND (${targetType}::moderation_target IS NULL OR q.target_type = ${targetType})
+    ORDER BY (q.priority = 'urgent') DESC, q.created_at ASC, q.id ASC LIMIT ${limit} OFFSET ${offset}`;
+  return rows.map(r => ({ ...r, reason: null, target_detail: null })) as unknown as QueueItem[];
 }
 
 /** Resolve the owning user id for a moderation target (for the ban action). */
@@ -630,7 +544,8 @@ export async function applyReviewDecision(
   decision: ReviewDecision,
   reviewerId: string | null = null
 ): Promise<{ target_type: string; target_id: string; applied: string }> {
-  const rows = (await sql()`SELECT id, target_type, target_id, status
+  const rows = (await sql()`SELECT id, target_type, target_id, status, priority,
+                             EXISTS (SELECT 1 FROM report_content_holds h WHERE moderation_queue.target_type = 'message' AND h.message_id = moderation_queue.target_id) AS content_held
                            FROM moderation_queue
                            WHERE id = ${queueId}
                            LIMIT 1`) as {
@@ -638,6 +553,8 @@ export async function applyReviewDecision(
     target_type: string;
     target_id: string;
     status: string;
+    priority?: string;
+    content_held?: boolean;
   }[];
   const item = rows[0];
   if (!item) {
@@ -645,6 +562,11 @@ export async function applyReviewDecision(
   }
   if (item.status === "approved" || item.status === "rejected") {
     throw new ModerationError(409, "already_reviewed", "This queue item has already been reviewed.");
+  }
+
+  if (item.priority === 'urgent' || item.content_held) {
+    throw new ModerationError(409, 'specialized_review_required',
+      'This item requires the specialized safety review process; ordinary review cannot release or resolve it.');
   }
 
   const applied = await applyToTarget(item.target_type, item.target_id, decision);

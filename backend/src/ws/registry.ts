@@ -22,3 +22,13 @@ export function dropSocketsForUser(userId: string): void {
     try { socket.close(4001, "account_unavailable"); } catch { /* already closed */ }
   }
 }
+
+/** Invalidate only the identified message on connected participant devices. */
+export function notifyContentContained(userIds: string[], messageId: string, threadId: string): void {
+  const event = JSON.stringify({ type: 'content_contained', message_id: messageId, thread_id: threadId });
+  for (const id of new Set(userIds)) {
+    for (const socket of hub().get(id) ?? []) {
+      try { if (socket.readyState === 1) socket.send(event); } catch { /* next hydration remains authoritative */ }
+    }
+  }
+}

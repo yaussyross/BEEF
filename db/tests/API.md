@@ -34,7 +34,7 @@ runtime is pinned by the image digest above. PostgreSQL is 17.5, PostGIS 3.5.2.
 The runner creates a uniquely named Docker `--internal` network and two
 disposable containers. Neither publishes ports or mounts host directories.
 PostgreSQL data is tmpfs-backed. Random credentials apply only to that temporary
-database; they are not read from the shell or recorded. All ten migrations are
+database; they are not read from the shell or recorded. All eleven migrations are
 applied to the empty database. Bun runs inside the proxy container with an empty
 inherited environment and `--no-env-file`; the runner copies only selected code,
 built files and dependencies, never `.env`, `.run`, `.git` or workspace secrets.
@@ -51,7 +51,7 @@ The runner removes both containers, tmpfs data and the private network in
 The first implementation attempted host publishing on an internal network;
 Docker exposed no port. The final runner uses no host publishing at all.
 
-## Current local coverage: eighteen passing groups
+## Current local coverage: nineteen passing groups
 
 - Production runtime liveness and database/schema readiness; missing latest
   migration fails readiness without leaking diagnostics.
@@ -75,15 +75,19 @@ Docker exposed no port. The final runner uses no host publishing at all.
 - Ratings: mutual message-span boundaries at 299/300/301 seconds; one-sided and
   client-timing/identity abuse rejected; integer star range; concurrent re-rating
   keeps one vote and the final write wins; block/suspension prevents later votes.
-- Synthetic CSAM-category report metadata (no explicit content), nontransmitting
-  stub, suspension, immediate socket closure and denial of existing HTTP token,
-  refresh token, new upgrade and peer history/inbox access.
+- Independently applied synthetic account suspension still denies existing
+  socket actions, HTTP tokens, refresh, upgrade and peer history/inbox access.
+  No external-report transmission occurs.
 - Report retry keys: concurrent identical submissions yield one report and queue
   row; changed payload/key misuse returns 409; reporter identity comes from auth.
 - Discarded post-commit receipt recovers the original report on retry.
-- Injected failure at the final suspension write rolls back report, queue,
-  evidence and user status; retry succeeds once. Replay after simulated human
-  reinstatement does not suspend again or duplicate evidence/review entries.
+- Injected failure at the final containment write rolls back report, queue,
+  evidence and hold; retry succeeds once. Replay preserves subsequent rejection
+  and never duplicates evidence or review entries.
+- Specifically identified severe-report messages are held and redacted from
+  ordinary REST history/inbox/duplicate sends and WS retries; accounts remain
+  active. Queue is metadata-only, urgent first, and ordinary review/direct SQL
+  cannot approve held content. Account/thread-only allegations do not suspend.
 - Human moderation ban through the real admin route and immediate revocation.
 - Direct database deletion status enforced on an existing socket's next action
   and an existing HTTP token.
@@ -91,7 +95,7 @@ Docker exposed no port. The final runner uses no host publishing at all.
   active socket, and allows access again when transport is restored.
 - Every persisted account verified to be a synthetic fixture.
 
-Latest output: [`artifacts/audit-2026-10-26/staging-api.txt`](../../artifacts/audit-2026-10-26/staging-api.txt).
+Latest output: [`artifacts/audit-2026-10-26/moderation-api.txt`](../../artifacts/audit-2026-10-26/moderation-api.txt).
 
 ## Limits
 
@@ -101,4 +105,4 @@ signing or a live reporting service. It does not prove multi-process revocation
 broadcasts, atomic cancellation of in-flight transactions, full moderation policy
 coverage, or concurrency/load behavior. Those are separate engineering/QA gates.
 No rating behavior is invented here. This suite is local-only; existing CI still
-runs its previously configured checks and the 32-test regression suite.
+runs its previously configured checks and the earlier regression suite; this local follow-up is not yet pushed.
