@@ -29,11 +29,11 @@ requeried after the earlier GraphQL Forbidden response.
 | Frozen backend install | PASS | Bun 1.3.14, existing lockfile |
 | Production backend build | PASS | Client and SSR bundles, no live service |
 | TypeScript | PASS | Zero errors; includes new regression tests |
-| Chat privacy/account access regression | PASS | 31 Bun tests with mocked SQL/socket objects; not REST/WS transport integration |
+| Chat privacy/account access/rating input regression | PASS | 32 Bun tests with mocked SQL/socket objects; not REST/WS transport integration |
 | Waitlist browser suite | PASS | 6 grouped checks: validation, loading/double submit, network retry, temporary persistence, disk failure, keyboard/responsive/reduced motion |
-| PostgreSQL/PostGIS | PASS | 20 printed PASS checks, eight migrations applied then skipped on second run; synthetic fixtures rolled back; container removed |
+| PostgreSQL/PostGIS | PASS | 41 printed PASS checks, nine migrations applied then skipped on second run; synthetic fixtures rolled back; container removed |
 | Flutter analyze / tests / APK | NOT RUN | SDK absent; prior official manifest HTTP 403 not retried or bypassed |
-| Authenticated REST/WS + local Neon transport | PASS | Ten integration groups against real disposable PostgreSQL; see follow-up below |
+| Authenticated REST/WS + local Neon transport | PASS | Eleven integration groups against real disposable PostgreSQL; see follow-up below |
 | Two-device Android/iOS, signed release, stores | NOT RUN | No devices or signing used |
 
 The previous 29 Flutter tests and debug APK success are historical reports for
@@ -67,9 +67,9 @@ the following acceptance gates. Ratings remain required, not deferred implicitly
 
 - [ ] Ratings: schema, API and Flutter prompt/display; integer stars 1–5;
   participant-only eligibility after a genuine five-minute chat; no self-rating;
-  latest vote replaces prior vote; aggregate beside username. Test boundary,
-  concurrent re-rating, blocked/suspended users and privacy. Define genuine chat
-  activity precisely before implementation; elapsed thread age alone is not proof.
+  latest vote replaces prior vote; aggregate beside username. Backend eligibility
+  and vote persistence now implement the approved mutual-message rule; client
+  prompt and public aggregate API/display remain. See ratings follow-up below.
 - [ ] Block/report controls in profile and conversation, confirmation and retry,
   blocked conversation removal and unread refresh; test enforcement both ways.
 - [ ] Privacy settings: coarse mode and hide-distance controls persisted through
@@ -113,10 +113,9 @@ reporting/escalation process before a real-user beta. Push service credentials a
 needed if push is included. No spending/account creation is authorized here.
 Staging selection is not a prerequisite for the isolated integration suite.
 
-The only product clarification needed before the rating implementation is the
-definition of a genuine five-minute chat; the 1–5 scale, re-rating and aggregate
-display are already owner requirements. A proposed acceptance rule should be
-presented for this narrow decision rather than asking whether ratings belong.
+The owner approved the genuine-chat rule on October 26 at 17:55:53 UTC: messages
+from both people spanning at least five minutes. No further decision on that
+rule is pending. The 1–5 scale, re-rating and aggregate display remain required.
 
 ## Reproduce available checks
 
@@ -195,3 +194,39 @@ This supersedes the earlier local HTTP/WS NOT RUN status, not the unrun cloud,
 mobile, multi-process/concurrency or signed-release stages. No rating eligibility
 or moderation policy decision was made. The earlier 31 regression tests, backend
 build and zero-error type-check remain passing after adding the integration suite.
+
+## Follow-up: approved rating eligibility
+
+The owner accepted the proposed rule: messages from both people across at least
+five minutes, not simply leaving a chat window open. Migration 0009 implements
+that rule using only existing server-generated chat-message timestamps and
+participant IDs. Both participants must have sent a message in their shared
+thread, and `max(created_at) - min(created_at)` must be at least 300 seconds.
+Two messages (one each) exactly five minutes apart qualify; one-sided messages
+or a shorter exchange followed by waiting do not. No continuous activity,
+online tracking, location, extra message-count threshold or new collection is used.
+
+`GET /api/ratings/:id` returns only `eligible` and the caller's `my_rating`.
+`POST /api/ratings/:id` accepts integer `stars` 1–5, always uses the authenticated
+user as rater, and stores one vote per pair. Re-rating replaces that vote. A
+database trigger rechecks eligibility for inserts and updates, including block
+and active-account guards. Client eligibility flags, identities and timestamps
+are not authority. Future message timestamps and unrelated senders do not count.
+The eligibility rule uses persisted exchanged messages without inventing new
+content-based penalties or a separate moderation policy.
+
+Ratings are still not a finished user-facing feature: the Flutter prompt and
+public aggregate API/display remain implementation work. No decision was made
+about appeals, rating removal/retention or moderation treatment of aggregates.
+Those are separate from the approved eligibility rule and must not be inferred
+from this backend change. Local migration tests and API tests use synthetic
+fixtures only; migration 0009 has not been applied to any live database.
+
+Final rating verification: backend build and zero-error TypeScript pass; 32 Bun
+regression tests pass; 41 real PostgreSQL checks pass (20 existing plus 21 rating
+checks), including all nine migrations and a no-op second application; eleven
+API/WebSocket integration groups pass; the six-group browser suite passes.
+Fresh evidence: [database](../artifacts/audit-2026-10-26/ratings-postgresql.txt)
+and [API/WebSocket](../artifacts/audit-2026-10-26/ratings-api-integration.txt).
+All test containers and networks were removed. Flutter/device/cloud deployment
+checks remain unrun; no push, live migration or deployment occurred.

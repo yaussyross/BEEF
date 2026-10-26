@@ -52,8 +52,11 @@ start here and read the docs in the order below.
 - **Chat client increment:** inbox, conversation history, native WebSocket chat,
   HTTP fallback, retry, moderation-safe display, and focused tests now exist.
   Live two-device testing is still needed (see `app/README.md`).
-- **Not built yet:** the block/report and privacy-settings UI, and the profile rating system
-  ("Rate this Guy" — schema, endpoint, and prompt are all unstarted).
+- **Ratings backend:** migration 0009 and eligibility/vote endpoints now enforce
+  the owner's approved rule (messages from both people spanning five minutes).
+  See the current audit for local database and API evidence.
+- **Not built yet:** block/report and privacy-settings UI, the rating prompt,
+  and public aggregate rating API/display.
 
 ## What to do next (priority order)
 
@@ -61,8 +64,8 @@ start here and read the docs in the order below.
 2. **Bring the backend up locally** (`docs/RUNBOOK.md`) and confirm the
    endpoints answer. Everything needed is in `.env.example`.
 3. **Finish the Flutter client:** verify the chat increment on two devices,
-   then add the block/report and privacy settings UI, and the "Rate this Guy" rating system (schema +
-   endpoint + prompt).
+   then add block/report and privacy settings UI, the "Rate this Guy" prompt,
+   and public aggregate rating API/display.
 4. **Get CI green on app builds** (already green on `main`; keep it that way —
    every PR runs the Flutter compile).
 5. **Owner accounts for release:** Apple Developer, Google Play, and Firebase

@@ -54,12 +54,12 @@ moderation-safe display, block handling, and foreground/resume behavior.
 This is not a live-backend or two-device verification claim. Current validation
 results belong to the feature PR; private beta still needs a real-device pass.
 
-## Not built (unstarted)
+## Remaining feature work
 
 | Item | Notes |
 |------|-------|
 | Block/report and privacy-settings UI | Backend endpoints exist; no client UI. |
-| Profile rating system ("Rate this Guy") | 1–5 stars, unlocked after a real 5-minute chat, re-rateable (latest vote wins), aggregate shown next to username. Schema, endpoint, and client prompt are **all unstarted** — no rating tables exist in `db/migrations/`. |
+| Profile rating system ("Rate this Guy") | Migration 0009 and GET/POST `/api/ratings/:id` now enforce the approved mutual-message five-minute rule and one re-rateable 1–5-star vote per pair. Locally verified with synthetic data. Flutter prompt and public aggregate API/display remain unbuilt. |
 
 ## Also true (from the owner-endorsed plan, mapped to reality)
 

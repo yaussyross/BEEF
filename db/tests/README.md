@@ -16,8 +16,8 @@ python db/tests/run_local.py
 The runner never pulls an image automatically. It creates a uniquely named
 container with `--network=none`, no published ports, and a tmpfs data directory.
 The initialization password is random and never recorded. It applies the existing
-`db/migrate.sh` twice, verifies the second run skips all eight migrations, and
-runs `contracts.sql` inside a transaction. Fixtures use `synthetic_demo` and
+`db/migrate.sh` twice, verifies the second run skips all migrations, and
+runs `contracts.sql` and `ratings.sql` inside rollback-only transactions. Fixtures use `synthetic_demo` and
 `example.test`; accepted users are fictional adults. Rejected age fixtures test
 the server-side constraint only. Fixtures roll back, and the runner removes its
 container in `finally`.
@@ -26,7 +26,9 @@ Coverage: age boundary and insert/update/null rejection; case-insensitive email
 uniqueness; intent-array casting; privacy/verification defaults; geography column
 synchronization; two-member chat threads; message idempotency; pair ordering and
 deduplication; thread activity timestamps. A separate check confirms zero users
-remain after rollback.
+remain after rollback. Ratings checks cover the approved mutual five-minute
+message span, exact boundaries, unrelated/future messages, one-sided messages,
+self-rating, score bounds, latest-vote replacement, and block/account guards.
 
 The application uses Neon's HTTP driver, while this suite uses `psql` inside the
 container. It does not validate REST/WS authentication, moderation flows, API
