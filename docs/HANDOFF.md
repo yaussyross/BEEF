@@ -96,3 +96,9 @@ do **not** transfer: the published site URL, the `backend/publish.sh` /
 (`backend/vercel-entry.ts`). They are marked "[this-platform only]" where they
 appear. The next owner should re-host the landing site + API on their own host;
 the code itself is portable Bun + TanStack Start.
+
+
+Local staging follow-up (not pushed): see [STAGING-RUNTIME.md](STAGING-RUNTIME.md).
+Explicit bind/configuration replaces sandbox port takeover; health/readiness and
+bounded shutdown are implemented; waitlist storage now uses PostgreSQL. Remote
+PR #6 remains green at 777700a; its CI does not cover this local follow-up yet.

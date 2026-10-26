@@ -89,3 +89,10 @@ Report retry follow-up: migration 0010 and client report IDs make same-submissio
 retries idempotent; database side effects commit atomically. Existing automatic
 suspension on a CSAM allegation remains a release-blocking false-report/moderation
 policy risk, not approved by this engineering fix. See the launch-readiness report.
+
+
+Local staging preparation (not deployed/pushed): validated environment startup,
+health/readiness, bounded shutdown, static containment and durable database
+waitlist implemented. Backend build/type-check, 32 existing regressions, five
+runtime tests, six browser checks and 18 isolated API/WS groups passed. No Flutter
+source changed; the green PR #6 result at 777700a is separate from this local head.

@@ -25,13 +25,15 @@ assert.equal((await sql`SELECT count(*)::int AS n FROM users`)[0].n, 0);
 console.log('PASS fresh migrated PostgreSQL reachable through real Neon HTTP driver');
 
 const { default: handler } = await import('../dist/server/server.js');
-const { chatWebSocketHandlers, handleChatUpgrade } = await import('../src/ws/chat.ts');
+const { chatWebSocketHandlers } = await import('../src/ws/chat.ts');
+const { createRuntime } = await import('../src/server/runtime.ts');
+const runtime = createRuntime({ handler, clientDir: new URL('../dist/client', import.meta.url).pathname, readinessTimeoutMs: 250 });
 let discardNextReportReceipt = false;
 const server = Bun.serve({
   hostname: '127.0.0.1', port: 0, websocket: chatWebSocketHandlers,
   async fetch(request, server) {
-    if (new URL(request.url).pathname === '/api/ws') return handleChatUpgrade(request, server);
-    const response = await handler.fetch(request);
+    const response = await runtime.fetch(request, server);
+    if (!response) return response;
     if (discardNextReportReceipt && new URL(request.url).pathname === '/api/report' && response.status === 201) {
       discardNextReportReceipt = false;
       return Response.json({ error: 'synthetic_lost_receipt' }, { status: 503 });
@@ -96,6 +98,35 @@ async function register(label) {
   return { id: account.user.id, token: account.accessToken, refresh: account.refreshToken };
 }
 try {
+  assert.deepEqual(await api('/healthz'), { status: 'ok' });
+  assert.deepEqual(await api('/readyz'), { status: 'ready' });
+  await sql`UPDATE schema_migrations SET version = 'synthetic_missing_latest' WHERE version = '0010_report_idempotency.sql'`;
+  await api('/readyz', { status: 503 });
+  await sql`UPDATE schema_migrations SET version = '0010_report_idempotency.sql' WHERE version = 'synthetic_missing_latest'`;
+  await api('/readyz');
+  console.log('PASS service liveness and database/schema readiness through the production runtime');
+
+  await api('/api/waitlist', { method: 'POST', body: { email: 'bad' }, status: 400 });
+  await api('/api/waitlist', { method: 'POST', body: { email: ['fixture@example.test'] }, status: 400 });
+  const fixtureEmail = 'fictional-waitlist@example.test';
+  await Promise.all(Array.from({ length: 5 }, () => api('/api/waitlist', { method: 'POST', body: { email: '  FICTIONAL-WAITLIST@example.test ' } })));
+  assert.equal((await sql`SELECT count(*)::int AS n FROM waitlist_emails WHERE email = ${fixtureEmail}`)[0].n, 1);
+  await sql`UPDATE waitlist_emails SET status = 'invited', source = 'synthetic_fixture' WHERE email = ${fixtureEmail}`;
+  // New server instance with the same database: no filesystem state survives.
+  const restarted = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: runtime.fetch, websocket: chatWebSocketHandlers });
+  try {
+    const response = await fetch(new URL('/api/waitlist', restarted.url), { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: fixtureEmail }) });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true });
+  } finally { restarted.stop(true); }
+  const savedWaitlist = await sql`SELECT email::text, status, source FROM waitlist_emails WHERE email = ${fixtureEmail}`;
+  assert.equal(savedWaitlist.length, 1);
+  assert.equal(savedWaitlist[0].status, 'invited');
+  assert.equal(savedWaitlist[0].source, 'synthetic_fixture');
+  assert.equal((await sql`SELECT count(*)::int AS n FROM users`)[0].n, 0);
+  console.log('PASS waitlist validation, concurrent case-insensitive deduplication and persistence across server instances without account creation');
+
   await api('/api/me', { status: 401 });
   await api('/api/register', { method: 'POST', status: 403,
     body: { email: 'underage-fixture@example.test', password, birthdate: '2020-01-01' } });
@@ -344,10 +375,17 @@ try {
     assert.equal(await sd.closed(), 4001);
     await api('/api/me', { token: d.token, status: 503 });
     await api('/api/ws', { token: d.token, status: 503 });
+    await api('/healthz');
+    await api('/readyz', { status: 503 });
+    assert.equal((await api('/api/waitlist', { method: 'POST', body: { email: 'retry-after-outage@example.test' }, status: 503 })).ok, false);
   } finally {
     neonConfig.fetchEndpoint = endpoint.href;
   }
   await api('/api/me', { token: d.token });
+  await api('/readyz');
+  await api('/api/waitlist', { method: 'POST', body: { email: 'retry-after-outage@example.test' } });
+  assert.equal((await sql`SELECT count(*)::int AS n FROM waitlist_emails WHERE email = 'retry-after-outage@example.test'`)[0].n, 1);
+  console.log('PASS readiness and durable waitlist fail closed during database outage and recover on retry');
   console.log('PASS transport outage fails closed on active socket, HTTP and upgrade; recovery restores access');
   assert.equal((await sql`SELECT count(*)::int AS n FROM users WHERE signup_source <> 'synthetic_demo'`)[0].n, 0);
   console.log('PASS all persisted accounts are synthetic fixtures');

@@ -1,32 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { appendFile, mkdir } from "node:fs/promises";
 import { useRef, useState } from "react";
-
-/**
- * Waitlist capture. Submissions are appended (one JSON object per line) to
- * .run/waitlist.jsonl in the site working directory. The .run/ folder is
- * gitignored and lives on this machine, so entries survive a `bun run publish`
- * (rebuild + server restart) of THIS host. Honest limitation: this is
- * single-host, file-based persistence — it is not a managed database, so it
- * would not survive the sandbox being rebuilt elsewhere. Swap in the DB helper
- * (src/db.ts) once a DATABASE_URL is connected.
- */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-const joinWaitlist = createServerFn({ method: "POST" })
-  .validator((data: { email?: string }) => data)
-  .handler(async ({ data }) => {
-    const email = (data.email ?? "").trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      return { ok: false, error: "That email looks a little undercooked. Try again?" };
-    }
-    const line = JSON.stringify({ email, ts: new Date().toISOString() }) + "\n";
-    await mkdir(".run", { recursive: true });
-    await appendFile(".run/waitlist.jsonl", line, "utf8");
-    return { ok: true, email };
-  }
-);
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -334,12 +307,16 @@ function WaitlistForm() {
     submitting.current = true;
     setStatus({ kind: "busy", msg: "Saving your place…" });
     try {
-      const res = await joinWaitlist({ data: { email } });
-      if (res.ok) {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const res = await response.json();
+      if (response.ok && res.ok === true) {
         setStatus({ kind: "ok", msg: "You're on the waitlist. We'll email you when there's news." });
         setEmail("");
       } else {
-        setStatus({ kind: "err", msg: res.error });
+        setStatus({ kind: "err", msg: typeof res.error === "string" ? res.error : "We couldn't confirm your place. Your email is still here; please try again." });
       }
     } catch {
       setStatus({ kind: "err", msg: "We couldn't confirm your place. Your email is still here; please try again." });

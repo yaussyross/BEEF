@@ -49,8 +49,8 @@ path for the waitlist import script). The app takes `BEEF_API_BASE_URL` as a
 Flutter `--dart-define` at build time, not from an env file. See `.env.example`
 for one-line descriptions.
 
-`serve.ts` deliberately ignores `PORT`/`HOST` — the public surface is pinned to
-`0.0.0.0:3000`.
+`serve.ts` reads `BEEF_HOST` / `BEEF_PORT`; defaults are `127.0.0.1:3000`.
+Generic `PORT`/`HOST` are ignored. See [staging runtime](STAGING-RUNTIME.md).
 
 ## 3. Apply migrations to a fresh Postgres
 
@@ -75,13 +75,13 @@ idempotent. CI never runs migrations.
 
 ## 4. Run the backend (landing site + REST API + chat WebSocket)
 
-Production server — ✅ verified (served `http://0.0.0.0:3000`, chat at `/api/ws`):
+Persistent server (historical public-host verification does not verify a new staging deployment):
 
 ```bash
 cd backend
 bun install
 bun run build          # ✅ ~1s; generates routeTree.gen.ts + dist/
-bun run start          # ✅ serves on 0.0.0.0:3000, frees the port first
+bun --no-env-file serve.ts  # inject required environment first; never takes over a port
 ```
 
 Dev server with hot reload:

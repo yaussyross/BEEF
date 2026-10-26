@@ -51,8 +51,14 @@ The runner removes both containers, tmpfs data and the private network in
 The first implementation attempted host publishing on an internal network;
 Docker exposed no port. The final runner uses no host publishing at all.
 
-## Current coverage: fifteen passing groups
+## Current local coverage: eighteen passing groups
 
+- Production runtime liveness and database/schema readiness; missing latest
+  migration fails readiness without leaking diagnostics.
+- Database waitlist validation, concurrent case-insensitive deduplication, new
+  server-instance persistence and preservation of existing invitation state.
+- Readiness and waitlist fail closed during transport outage, then retry succeeds
+  without duplicate entries or implicit account creation.
 - Empty migrated database reached through actual Neon HTTP queries.
 - Registration/login/refresh, JWT audience isolation, missing authentication
   and server-side 18+ rejection.
@@ -85,7 +91,7 @@ Docker exposed no port. The final runner uses no host publishing at all.
   active socket, and allows access again when transport is restored.
 - Every persisted account verified to be a synthetic fixture.
 
-Latest output: [`artifacts/audit-2026-10-26/report-idempotency-api.txt`](../../artifacts/audit-2026-10-26/report-idempotency-api.txt).
+Latest output: [`artifacts/audit-2026-10-26/staging-api.txt`](../../artifacts/audit-2026-10-26/staging-api.txt).
 
 ## Limits
 

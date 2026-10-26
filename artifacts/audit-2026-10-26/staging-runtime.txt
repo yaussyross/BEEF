@@ -1,0 +1,13 @@
+bun test v1.3.14 (0d9b296a)
+
+tests/runtime.test.ts:
+(pass) explicit runtime config defaults to loopback and validates without disclosing values [2.11ms]
+(pass) readiness timeout aborts; liveness stays independent and responses disclose no diagnostics [11.94ms]
+(pass) shutdown fails readiness and application traffic closed but preserves liveness [0.32ms]
+(pass) static serving prevents symlink escape, hidden files and encoded traversal [2.30ms]
+(pass) real service starts on explicit loopback, shuts down, and never takes over an occupied port [228.75ms]
+
+ 5 pass
+ 0 fail
+ 34 expect() calls
+Ran 5 tests across 1 file. [314.00ms]

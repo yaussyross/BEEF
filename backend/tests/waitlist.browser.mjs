@@ -1,11 +1,13 @@
 // Run with Bun after `bun run build`. Uses Playwright + an installed Chromium.
-// All writes go to a throwaway directory, never the real waitlist or database.
+// UI success is mocked; real database persistence is covered by api.integration.mjs.
+// No DATABASE_URL is inherited and no data is written.
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, rename, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+delete process.env.DATABASE_URL;
 const root = resolve(import.meta.dirname, '..');
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { default: handler } = await import(pathToFileURL(join(root, 'dist/server/server.js')));
@@ -72,7 +74,7 @@ try {
   if (screenshots) await page.screenshot({ path: join(screenshots, 'desktop-retry.png'), fullPage: true });
   await page.unroute('**/*');
 
-  // Server validation failure exercises the real serialized server function.
+  // Server validation exercises the real HTTP route without database access.
   await input.fill('adult@example.x');
   await submit.click();
   await status.filter({ hasText: 'undercooked' }).waitFor();
@@ -81,16 +83,13 @@ try {
 
   await input.fill('fictional-adult@example.test');
   assert.equal(await status.textContent(), '');
+  await page.route('**/api/waitlist', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }));
   await submit.click();
   await status.filter({ hasText: "You're on the waitlist" }).waitFor();
   assert.equal(await input.inputValue(), '');
-  const entries = (await readFile(join(temporary, '.run/waitlist.jsonl'), 'utf8')).trim().split('\n');
-  assert.equal(entries.length, 1);
-  assert.equal(JSON.parse(entries[0]).email, 'fictional-adult@example.test');
-  console.log('PASS retry and confirmed file persistence in isolated temporary directory');
+  console.log('PASS retry and confirmed success UI (mock receipt; database tested separately)');
+  await page.unroute('**/api/waitlist');
 
-  await rename(join(temporary, '.run'), join(temporary, 'saved-run'));
-  await writeFile(join(temporary, '.run'), 'intentional test-only storage failure');
   await input.fill('another-fictional-adult@example.test');
   await submit.click();
   await status.filter({ hasText: "couldn't confirm" }).waitFor();
