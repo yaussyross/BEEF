@@ -1,5 +1,9 @@
 # BEEF — Status (built vs. not yet)
 
+> See [26 October 2026 audit](LAUNCH-READINESS-2026-10-26.md) for the combined
+> development branch, current test results, privacy fix and exact remaining gates.
+> Historical live and CI claims below are not current verification.
+
 > For the 2026-10-21 development check and waitlist repair, see
 > [revival evidence](REVIVAL-2026-10-21.md). The revival branch now type-checks
 > with zero errors and strict CI. Local PostgreSQL migration/constraint tests

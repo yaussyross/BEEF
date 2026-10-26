@@ -1,5 +1,9 @@
 # BEEF — Handoff
 
+> Current local audit: [26 October 2026 launch readiness](LAUNCH-READINESS-2026-10-26.md).
+> It reconciles the chat and waitlist tracks and distinguishes current checks
+> from the historical live/CI results below. Public launch remains gated.
+
 **BEEF** is a free, ads-supported gay male social app for friends, dates, and
 hookups — a grid-based proximity app (in the spirit of Grindr, but with its own
 branding, personality, and features) that is *privacy-first by design*: precise
