@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: bun run build
 
-      - name: Chat privacy regression tests
+      - name: Chat privacy and account access regression tests
         run: bun test tests/chat-idempotency.test.ts
 
       # Bun types are included; every TypeScript error now fails CI.

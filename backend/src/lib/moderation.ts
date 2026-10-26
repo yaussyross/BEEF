@@ -1,4 +1,5 @@
 import { sql } from "~/db";
+import { dropSocketsForUser } from "../ws/registry";
 
 /**
  * BEEF — "Sauce Check" moderation pipeline (server-only).
@@ -615,6 +616,7 @@ async function resolveTargetUser(targetType: string, targetId: string): Promise<
 
 async function banUser(userId: string): Promise<void> {
   await sql()`UPDATE users SET status = 'banned' WHERE id = ${userId}`;
+  dropSocketsForUser(userId);
   await sql()`UPDATE profiles SET moderation_status = 'banned' WHERE user_id = ${userId}`;
 }
 

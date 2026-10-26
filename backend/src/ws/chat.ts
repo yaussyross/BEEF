@@ -1,4 +1,6 @@
-import { verifyAccessToken, AuthError } from "../lib/auth";
+import { verifyAccessToken, requireActiveAccount, AuthError } from "../lib/auth";
+import { hub, dropSocketsForUser, type ChatSocket } from "./registry";
+export type { ChatSocket } from "./registry";
 import {
   ChatError,
   markThreadRead,
@@ -40,13 +42,6 @@ import {
 // Socket handlers use a narrow structural surface; upgrades use Bun's actual
 // contract, including the authenticated userId already supplied at the call site.
 
-export interface ChatSocket {
-  data: { userId: string };
-  readyState: number;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-}
-
 export type ChatServer = Pick<Bun.Server<{ userId: string }>, "upgrade">;
 
 const OPEN = 1;
@@ -54,15 +49,6 @@ const OPEN = 1;
 // -----------------------------------------------------------------------------
 // Live socket registry (process-wide singleton).
 // -----------------------------------------------------------------------------
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __BEEF_CHAT_HUB__: Map<string, Set<ChatSocket>> | undefined;
-}
-
-function hub(): Map<string, Set<ChatSocket>> {
-  return (globalThis.__BEEF_CHAT_HUB__ ??= new Map<string, Set<ChatSocket>>());
-}
 
 function register(userId: string, ws: ChatSocket): void {
   let set = hub().get(userId);
@@ -79,7 +65,10 @@ function unregister(ws: ChatSocket): void {
   if (set.size === 0) hub().delete(userId);
 }
 
-function sendToUser(userId: string, payload: unknown): void {
+async function sendToUser(userId: string, payload: unknown): Promise<void> {
+  // Recheck at delivery as well as at send/read: an idle recipient may have
+  // been disabled after connecting, including by another server process.
+  await requireActiveAccount(userId);
   const set = hub().get(userId);
   if (!set) return;
   const text = JSON.stringify(payload);
@@ -156,6 +145,7 @@ export async function handleChatUpgrade(
   let userId: string;
   try {
     userId = await verifyAccessToken(token);
+    await requireActiveAccount(userId);
   } catch (err) {
     if (err instanceof AuthError) return wsResponse(err.status, err.code, err.message);
     return wsResponse(401, "invalid_token", "Invalid or expired token.");
@@ -216,11 +206,16 @@ async function handleSend(senderId: string, msg: SendMessage): Promise<void> {
   const message = toWireMessage(result.message);
 
   // Ack to the sender (idempotent: same payload for a new send or a retry).
-  sendToUser(senderId, { type: "ack", message, duplicate: !result.created });
+  await sendToUser(senderId, { type: "ack", message, duplicate: !result.created });
 
   // Deliver to the recipient if live. Offline is fine — the message is already
   // persisted; they hydrate history on reconnect.
-  sendToUser(result.recipientId, { type: "message", message });
+  // Recipient availability must never close or mislabel the sender's session.
+  try {
+    await sendToUser(result.recipientId, { type: "message", message });
+  } catch (error) {
+    if (!(error instanceof AuthError)) throw error;
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -228,7 +223,7 @@ async function handleSend(senderId: string, msg: SendMessage): Promise<void> {
 // -----------------------------------------------------------------------------
 
 export const chatWebSocketHandlers = {
-  open(ws: ChatSocket): void {
+  async open(ws: ChatSocket): Promise<void> {
     const userId = ws.data?.userId;
     if (!userId) {
       try {
@@ -240,9 +235,13 @@ export const chatWebSocketHandlers = {
     }
     register(userId, ws);
     try {
-      ws.send(JSON.stringify({ type: "connected", user_id: userId }));
+      await requireActiveAccount(userId);
+      if (hub().get(userId)?.has(ws) && ws.readyState === OPEN) {
+        ws.send(JSON.stringify({ type: "connected", user_id: userId }));
+      }
     } catch {
-      // ignore
+      unregister(ws);
+      try { ws.close(4001, "account_unavailable"); } catch { /* already closed */ }
     }
   },
 
@@ -258,15 +257,16 @@ export const chatWebSocketHandlers = {
     }
 
     try {
+      await requireActiveAccount(userId);
       if (msg.type === "send") {
         await handleSend(userId, msg);
       } else if (msg.type === "read") {
         await markThreadRead(userId, msg.thread_id);
-        sendToUser(userId, { type: "read_ack", thread_id: msg.thread_id });
+        await sendToUser(userId, { type: "read_ack", thread_id: msg.thread_id });
       }
     } catch (err) {
       const payload =
-        err instanceof ChatError
+        err instanceof ChatError || err instanceof AuthError
           ? { type: "error", code: err.code, message: err.message }
           : { type: "error", code: "internal", message: "Something went wrong." };
       try {
@@ -274,7 +274,8 @@ export const chatWebSocketHandlers = {
       } catch {
         // ignore
       }
-      if (!(err instanceof ChatError)) console.error("[ws] send error:", err);
+      if (err instanceof AuthError) dropSocketsForUser(userId);
+      else if (!(err instanceof ChatError)) console.error("[ws] send error:", err);
     }
   },
 

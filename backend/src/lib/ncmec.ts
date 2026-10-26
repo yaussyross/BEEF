@@ -1,4 +1,5 @@
 import { sql } from "~/db";
+import { dropSocketsForUser } from "../ws/registry";
 
 /**
  * BEEF — NCMEC CyberTipline flow (CSAM). Server-only.
@@ -67,6 +68,7 @@ export async function preserveEvidence(reportId: string, evidence: EvidenceSnaps
 /** Freeze the reported account (suspended, not banned) pending human/NCMEC review. */
 export async function disableAccountForCsam(userId: string): Promise<void> {
   await sql()`UPDATE users SET status = 'suspended' WHERE id = ${userId}`;
+  dropSocketsForUser(userId);
   await sql()`UPDATE profiles SET moderation_status = 'suspended' WHERE user_id = ${userId}`;
 }
 

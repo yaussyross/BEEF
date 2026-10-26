@@ -1,4 +1,5 @@
 import { sql } from "../db";
+import { requireActiveAccount } from "./auth";
 import { enqueueModeration, screenText } from "./moderation";
 
 /**
@@ -100,10 +101,17 @@ export async function isActiveUser(id: string): Promise<boolean> {
  * was actually newly created.
  */
 export async function getOrCreateThread(userId: string, otherId: string): Promise<ThreadRow> {
+  await requireActiveAccount(userId);
   if (userId === otherId) {
     throw new ChatError(400, "self_thread", "You can't start a thread with yourself.");
   }
   const [low, high] = sortedPair(userId, otherId);
+  if (!(await isActiveUser(otherId))) {
+    throw new ChatError(404, "user_not_found", "That user doesn't exist.");
+  }
+  if (await isBlockedEither(userId, otherId)) {
+    throw new ChatError(403, "blocked", "You can't access this conversation.");
+  }
 
   // Get-or-create in one statement (CTE inserts participants only on create).
   await sql()`WITH ins AS (
@@ -139,6 +147,7 @@ export async function getOrCreateThread(userId: string, otherId: string): Promis
  * through, so block enforcement can't be forgotten by a caller.
  */
 export async function getThreadForParticipant(userId: string, threadId: string): Promise<ThreadRow> {
+  await requireActiveAccount(userId);
   const rows = await sql()`SELECT ct.id, ct.participant_low, ct.participant_high,
                                 ct.created_at::text AS created_at,
                                 ct.last_message_at::text AS last_message_at
@@ -148,6 +157,9 @@ export async function getThreadForParticipant(userId: string, threadId: string):
                          LIMIT 1`;
   const thread = rows[0] as ThreadRow | undefined;
   if (!thread) {
+    throw new ChatError(404, "thread_not_found", "Thread not found.");
+  }
+  if (!(await isActiveUser(otherParticipant(thread, userId)))) {
     throw new ChatError(404, "thread_not_found", "Thread not found.");
   }
   if (await isBlockedEither(userId, otherParticipant(thread, userId))) {
@@ -316,6 +328,7 @@ export async function getThreadHistory(
 
 /** Mark a thread read up to now for a participant (updates last_read_at). */
 export async function markThreadRead(userId: string, threadId: string): Promise<void> {
+  await getThreadForParticipant(userId, threadId);
   await sql()`UPDATE thread_participants
              SET last_read_at = now()
              WHERE thread_id = ${threadId} AND user_id = ${userId}`;
@@ -328,6 +341,7 @@ export async function markThreadRead(userId: string, threadId: string): Promise<
  * unread count (messages from the other user newer than this user's last_read_at).
  */
 export async function listThreads(userId: string): Promise<ThreadSummary[]> {
+  await requireActiveAccount(userId);
   const rows = await sql()`SELECT
       ct.id,
       ct.last_message_at::text AS last_message_at,
@@ -360,6 +374,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
       LIMIT 1
     ) last_msg ON true
     WHERE tp.user_id = ${userId}
+      AND other.status = 'active'
       AND NOT EXISTS (
         SELECT 1 FROM blocks b
         WHERE (b.blocker_id = ${userId} AND b.blocked_id = other.id)

@@ -29,7 +29,7 @@ requeried after the earlier GraphQL Forbidden response.
 | Frozen backend install | PASS | Bun 1.3.14, existing lockfile |
 | Production backend build | PASS | Client and SSR bundles, no live service |
 | TypeScript | PASS | Zero errors; includes new regression tests |
-| Chat privacy regression | PASS | 2 Bun unit tests with mocked SQL; not REST/WS integration |
+| Chat privacy/account access regression | PASS | 31 Bun tests with mocked SQL/socket objects; not REST/WS transport integration |
 | Waitlist browser suite | PASS | 6 grouped checks: validation, loading/double submit, network retry, temporary persistence, disk failure, keyboard/responsive/reduced motion |
 | PostgreSQL/PostGIS | PASS | 20 printed PASS checks, eight migrations applied then skipped on second run; synthetic fixtures rolled back; container removed |
 | Flutter analyze / tests / APK | NOT RUN | SDK absent; prior official manifest HTTP 403 not retried or bypassed |
@@ -76,9 +76,9 @@ the following acceptance gates. Ratings remain required, not deferred implicitly
   API; verify no coordinates or other users' birthdates in public payloads.
 - [ ] Account lifecycle: working account deletion and recovery flows; retention
   decisions documented; verify old tokens and sockets cannot continue after
-  suspension/deletion. Current `requireAuth` and WS upgrade verify signatures,
-  but do not check active account state; existing chat reads/sends also lack an
-  active-account check. This is an unresolved code-review finding, not a live test.
+  suspension/deletion. The account-status gap found in the initial audit is now
+  fixed in the follow-up below; deletion/recovery flows and transport-level
+  validation remain outstanding.
 - [ ] Moderation operations: human queue review, reports, appeals/escalation and
   evidence handling exercised with synthetic fixtures. NCMEC submission remains
   explicitly a nontransmitting stub. Do not treat a stub as an operational process.
@@ -130,3 +130,43 @@ image described in `db/tests/README.md`.
 No access operation was denied during this audit. Known earlier Flutter manifest
 and GraphQL denials were left untouched. Environment/tool and integration gaps
 above remain unresolved; none has an uncertain mutation outcome.
+
+## Follow-up: account status enforcement
+
+The same local branch now checks current account status on every authenticated
+HTTP request, WebSocket upgrade/open/action and outbound WebSocket delivery.
+Missing accounts are rejected with 401, non-active accounts with 403, and an
+unavailable status lookup with 503. No active-status cache or JWT-only fallback
+is used. Failed status checks remove and close that user's local sockets.
+
+The existing CSAM suspension and human ban paths now remove/close all local
+sockets immediately after the user-status update, before the profile update.
+This still closes sockets if the subsequent profile update fails. The socket
+registry remains on globalThis, shared by bundled REST and Bun entry modules.
+No reporting or moderation decision policy changed; the NCMEC stub still does
+not transmit.
+
+Chat domain guards cover both callers and peers before history/send/read access;
+the recipient-ID send path cannot create a thread for an inactive recipient.
+Inboxes exclude inactive peers. Read acknowledgements now use the same
+participant/block/status checks as history. Outbound delivery rechecks the
+recipient; a newly unavailable recipient receives nothing and is closed,
+without closing the active sender's session or claiming persistence failed.
+The earlier cross-conversation message-ID privacy fix is preserved.
+
+Validation: 31 Bun regression tests pass (including the original two), build
+passes, and TypeScript has zero errors. The tests exercise real JWT signing and
+verification plus production auth/chat/socket/moderation functions, but mock SQL
+and socket objects. They are not a live Neon HTTP or real WebSocket transport
+test. The browser suite passed all six grouped checks again, and the disposable
+database suite passed all 20 checks again with its container removed afterward.
+The GitHub CI test step invokes the expanded suite; no push or hosted CI run.
+
+Operational limits: immediate socket closure is process-local. Other processes
+and direct database status changes are caught on the next action or delivery;
+there is no cross-process revocation broadcast or idle-socket sweep. Checks
+are not a serialized transaction with account-state changes, so already in-flight
+work is not claimed to be atomically cancelled. Persistent token revocation on
+later account reactivation is also outside this change. These need explicit
+integration/concurrency validation before real-user beta, not production tests
+during this task. No Flutter, device, signing or deployment check was run.
