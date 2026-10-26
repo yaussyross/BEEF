@@ -32,3 +32,6 @@ The application uses Neon's HTTP driver, while this suite uses `psql` inside the
 container. It does not validate REST/WS authentication, moderation flows, API
 privacy payloads, or the Neon transport. Those require a separately configured
 local Neon-compatible proxy/test stack; do not substitute production secrets.
+
+That separate stack is now implemented and locally verified: see [API and
+WebSocket integration](API.md) and `run_api_local.py`. No staging host is needed.

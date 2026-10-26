@@ -33,7 +33,7 @@ requeried after the earlier GraphQL Forbidden response.
 | Waitlist browser suite | PASS | 6 grouped checks: validation, loading/double submit, network retry, temporary persistence, disk failure, keyboard/responsive/reduced motion |
 | PostgreSQL/PostGIS | PASS | 20 printed PASS checks, eight migrations applied then skipped on second run; synthetic fixtures rolled back; container removed |
 | Flutter analyze / tests / APK | NOT RUN | SDK absent; prior official manifest HTTP 403 not retried or bypassed |
-| Authenticated REST/WS + Neon transport | NOT RUN | No isolated Neon-compatible HTTP test stack configured |
+| Authenticated REST/WS + local Neon transport | PASS | Ten integration groups against real disposable PostgreSQL; see follow-up below |
 | Two-device Android/iOS, signed release, stores | NOT RUN | No devices or signing used |
 
 The previous 29 Flutter tests and debug APK success are historical reports for
@@ -87,10 +87,11 @@ the following acceptance gates. Ratings remain required, not deferred implicitly
   owner agreement on beta scope; they cannot silently count as finished.
 - [ ] Reproducible Flutter analyze/test/debug APK on the combined commit, then
   signed Android and iOS builds. CI configuration exists but has not run here.
-- [ ] Isolated HTTP/WS integration: registration and 18+ rejection, login/refresh,
+- [x] Isolated HTTP/WS integration: registration and 18+ rejection, login/refresh,
   profile/grid privacy, inbox/history pagination, idempotency conflict, moderation,
   block, suspension and reconnect. Real PostgreSQL constraints alone do not cover
-  the Neon HTTP driver or endpoint behavior.
+  the Neon HTTP driver or endpoint behavior. The separate local proxy suite now
+  validates these paths; concurrency and deployment-host checks remain separate.
 - [ ] Two-device scripted QA: send/receive/read, background/resume, expired token,
   airplane-mode retry, lost acknowledgement, logout/account switch and block.
   Record device/OS, build commit and each expected/actual outcome.
@@ -110,6 +111,7 @@ configuration, confirm beta devices/testers, and supply store account/signing
 access for distribution. Confirm moderation responsibility and an appropriate
 reporting/escalation process before a real-user beta. Push service credentials are
 needed if push is included. No spending/account creation is authorized here.
+Staging selection is not a prerequisite for the isolated integration suite.
 
 The only product clarification needed before the rating implementation is the
 definition of a genuine five-minute chat; the 1–5 scale, re-rating and aggregate
@@ -170,3 +172,26 @@ work is not claimed to be atomically cancelled. Persistent token revocation on
 later account reactivation is also outside this change. These need explicit
 integration/concurrency validation before real-user beta, not production tests
 during this task. No Flutter, device, signing or deployment check was run.
+
+## Follow-up: real isolated API/WebSocket integration
+
+The local transport prerequisite has been resolved without a staging host.
+`db/tests/run_api_local.py` now starts fresh PostgreSQL/PostGIS and the
+Neon-documented local HTTP proxy on a disposable internal network. The built
+REST handler and production WebSocket callbacks run in a test-only Bun wrapper.
+No production runtime/database configuration was changed. No ports or host
+directories are exposed, no cloud credentials are inherited, and all fixtures
+are synthetic. Containers, data and network were removed after the run.
+
+Ten integration groups passed, including real JWT/auth routes, PostgreSQL queries,
+Neon HTTP decoding, location/profile privacy, persisted privacy settings, chat
+send/read/pagination and retry, REST and WS cross-thread privacy rejection,
+block socket closure across bundled modules, suspension and human ban revocation,
+direct status changes, and transport-outage fail-closed behavior/recovery.
+See [reproduction and coverage](../db/tests/API.md) and
+[captured output](../artifacts/audit-2026-10-26/api-integration.txt).
+
+This supersedes the earlier local HTTP/WS NOT RUN status, not the unrun cloud,
+mobile, multi-process/concurrency or signed-release stages. No rating eligibility
+or moderation policy decision was made. The earlier 31 regression tests, backend
+build and zero-error type-check remain passing after adding the integration suite.

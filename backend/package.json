@@ -10,7 +10,8 @@
     "publish": "bash ./publish.sh",
     "go-live": "bash ./go-live.sh",
     "format": "prettier --write .",
-    "test:waitlist": "bun tests/waitlist.browser.mjs"
+    "test:waitlist": "bun tests/waitlist.browser.mjs",
+    "test:api:local": "python3 ../db/tests/run_api_local.py"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
