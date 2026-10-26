@@ -47,10 +47,12 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       final settings = await _api!.load();
       if (mounted) setState(() { _mode = settings.mode; _hide = settings.hideDistance; });
     } catch (error) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _mode = null;
         _error = error is ApiException ? error.message : 'Could not load privacy settings. Try again.';
-      });
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -61,15 +63,19 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     setState(() { _saving = true; _error = null; _confirmation = null; });
     try {
       final settings = await _api!.save(_mode!, _hide);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _mode = settings.mode; _hide = settings.hideDistance;
         _confirmation = 'Privacy settings saved.';
-      });
+        });
+      }
     } catch (error) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = error is ApiException ? error.message : 'Could not confirm your changes. Try again.';
         _disabled = error is ApiException && error.code == 'account_disabled';
-      });
+        });
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
