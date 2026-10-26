@@ -33,7 +33,7 @@ requeried after the earlier GraphQL Forbidden response.
 | Waitlist browser suite | PASS | 6 grouped checks: validation, loading/double submit, network retry, temporary persistence, disk failure, keyboard/responsive/reduced motion |
 | PostgreSQL/PostGIS | PASS | 41 printed PASS checks, nine migrations applied then skipped on second run; synthetic fixtures rolled back; container removed |
 | Flutter analyze / tests / APK | NOT RUN | SDK absent; prior official manifest HTTP 403 not retried or bypassed |
-| Authenticated REST/WS + local Neon transport | PASS | Eleven integration groups against real disposable PostgreSQL; see follow-up below |
+| Authenticated REST/WS + local Neon transport | PASS | Twelve integration groups against real disposable PostgreSQL; see follow-up below |
 | Two-device Android/iOS, signed release, stores | NOT RUN | No devices or signing used |
 
 The previous 29 Flutter tests and debug APK success are historical reports for
@@ -69,7 +69,8 @@ the following acceptance gates. Ratings remain required, not deferred implicitly
   participant-only eligibility after a genuine five-minute chat; no self-rating;
   latest vote replaces prior vote; aggregate beside username. Backend eligibility
   and vote persistence now implement the approved mutual-message rule; client
-  prompt and public aggregate API/display remain. See ratings follow-up below.
+  controls are authored but await Flutter validation. Public aggregate exposure
+  is held by the latest instruction. See follow-ups below.
 - [ ] Block/report controls in profile and conversation, confirmation and retry,
   blocked conversation removal and unread refresh; test enforcement both ways.
 - [ ] Privacy settings: coarse mode and hide-distance controls persisted through
@@ -77,8 +78,8 @@ the following acceptance gates. Ratings remain required, not deferred implicitly
 - [ ] Account lifecycle: working account deletion and recovery flows; retention
   decisions documented; verify old tokens and sockets cannot continue after
   suspension/deletion. The account-status gap found in the initial audit is now
-  fixed in the follow-up below; deletion/recovery flows and transport-level
-  validation remain outstanding.
+  fixed and transport-tested in the follow-ups below; deletion/recovery flows
+  remain outstanding.
 - [ ] Moderation operations: human queue review, reports, appeals/escalation and
   evidence handling exercised with synthetic fixtures. NCMEC submission remains
   explicitly a nontransmitting stub. Do not treat a stub as an operational process.
@@ -230,3 +231,56 @@ Fresh evidence: [database](../artifacts/audit-2026-10-26/ratings-postgresql.txt)
 and [API/WebSocket](../artifacts/audit-2026-10-26/ratings-api-integration.txt).
 All test containers and networks were removed. Flutter/device/cloud deployment
 checks remain unrun; no push, live migration or deployment occurred.
+
+## Follow-up: private rating, safety and privacy controls
+
+Local Flutter source now provides rating eligibility/submission from profiles
+and conversations, a confirmed block flow, report forms scoped to profile or
+thread, and privacy preferences from the grid. Loading, retry, retained inputs,
+duplicate submission guards and server rejection states are implemented. After a
+confirmed block the parent screen clears local chat state and closes the profile
+or conversation; WS delivery is not required for that local invalidation. Chat
+poll responses with `account_disabled` now request the existing session teardown.
+Covered conversations stop read markers while the rating/safety route is open.
+
+The defaults are existing requirements, not new product decisions:
+
+- **1–5 stars and re-rating:** `docs/BUSINESS.md`, MVP milestone (line 32),
+  explicitly specifies 1–5 stars and “re-rateable — latest vote wins”; the
+  implementation plan repeats this in `docs/ROADMAP.md` section 1.2.
+- **Five-minute eligibility:** owner approval recorded in the prior section;
+  the client fetches server eligibility rather than timing an open screen.
+- **Reports:** the seven categories in `backend/src/routes/api/report.ts`;
+  the UI does not change existing suspension, review or NCMEC-stub behavior.
+- **Privacy:** existing `city`, `region`, `exact` and `hide_distance` fields
+  in `api/profile.ts`/`lib/privacy.ts`. Saved values are loaded; exact mode is an
+  explicit choice with explanatory text. No new location collection or defaults.
+
+Public rating aggregates are **not added or exposed in this step**, per the latest
+instruction.
+Visibility, rating appeals/removal/retention and moderation treatment remain
+separate; none was decided here. Blocked-user listing/unblock management is also
+not included in this bounded UI step.
+
+Verification on the resulting source: backend build, zero-error TypeScript and
+32 Bun regression tests pass; the real API/WS suite passes 12 groups, now also
+covering participant-only thread reporting, explicit exact-mode distance output,
+and suspended-account rejection of profile changes, reports and blocks.
+Evidence: [private-controls API run](../artifacts/audit-2026-10-26/private-controls-api.txt).
+The unchanged database schema/contracts last passed 41 checks in the preceding
+step. The landing-page browser suite was not rerun for these client-only controls.
+
+**Flutter NOT RUN:** 21 new tests are authored across `ratings_test.dart` and
+`safety_privacy_test.dart` (9 rating cases including parameterized revocation,
+12 safety/privacy cases). There is no installed Flutter/Dart SDK; the prior
+official-download denial was not retried or bypassed. These are source-reviewed
+changes, not a compile-verified private build. No new action was denied, and all
+test containers/networks were removed.
+
+Remaining device gates: run Flutter analyze and the entire old/new test suite;
+build an Android debug APK; exercise two synthetic adult accounts on devices for
+rating unlock/re-rate/retry, block while disconnected, report confirmation,
+privacy persistence, suspension/session teardown, navigation/read markers and
+small-screen/accessibility behavior. iOS compilation/signing and release checks
+remain separate. No new owner decision blocks these authored controls; an
+approved SDK/CI environment and then devices are the immediate validation needs.

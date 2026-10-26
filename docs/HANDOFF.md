@@ -55,8 +55,9 @@ start here and read the docs in the order below.
 - **Ratings backend:** migration 0009 and eligibility/vote endpoints now enforce
   the owner's approved rule (messages from both people spanning five minutes).
   See the current audit for local database and API evidence.
-- **Not built yet:** block/report and privacy-settings UI, the rating prompt,
-  and public aggregate rating API/display.
+- **Client controls authored, not Flutter-verified:** block/report, privacy
+  settings and rating eligibility/submission. Public aggregate API/display
+  remains outside the current scope; see `app/README.md` for exact coverage.
 
 ## What to do next (priority order)
 

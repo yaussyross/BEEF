@@ -151,3 +151,36 @@ Run `flutter analyze`, `flutter test`, and `flutter build apk --debug`. Tests us
 in-memory fixtures and mocked HTTP/WebSocket transport, with no accounts or DB.
 CI runs the test suite before the APK build. A two-device check against an
 owner-approved test backend is still required before calling this beta-ready.
+
+## Rating and safety controls (local source; Flutter verification pending)
+
+- Profile and conversation actions open **Rate this Guy**. The screen fetches
+  server eligibility, explains the mutual five-minute rule, accepts 1–5 stars,
+  confirms successful saves and supports replacing the caller's earlier vote.
+  Loading, explicit retry, duplicate-save protection and revoked eligibility
+  states are implemented. There is no client timer or online tracking.
+- **Safety options** on profiles and conversations provide confirmed blocking
+  and reports using the existing backend categories. Reports retain entered
+  details on failure and only claim receipt after a confirmed response. A
+  confirmed block clears the local conversation/inbox even without a WS event.
+- **Privacy settings** from the grid load saved city/region/exact preferences
+  and hide-distance, explain exact mode's existing behavior, and save explicitly.
+  No device location collection was added; coordinates/birthdate are not rendered.
+- Opening rating/safety from a conversation pauses its read markers until the
+  user returns. Suspended-account chat responses request session teardown.
+- Public aggregate APIs/displays and blocked-user/unblock management are not
+  included in this step. No new moderation or rating visibility policy is set.
+
+Sources: rating scale and re-rating are owner-plan requirements in
+`docs/BUSINESS.md` (MVP milestone) and `docs/ROADMAP.md` section 1.2. The mutual
+five-minute message-span rule was approved by the owner on October 26. Report
+categories mirror `backend/src/routes/api/report.ts`; privacy options mirror
+`backend/src/routes/api/profile.ts` and `backend/src/lib/privacy.ts`.
+
+`test/ratings_test.dart` and `test/safety_privacy_test.dart` add 21 test cases
+(including the three parameterized rating-revocation cases). **These tests,
+Flutter analyze and app builds have not run here:** no Flutter/Dart SDK is
+available, and the prior denied official download was not retried or bypassed.
+The historical SDK notes earlier in this file are not a current installation.
+Run the full existing and new Flutter suite, then Android build and two-device
+QA before treating these controls as verified.

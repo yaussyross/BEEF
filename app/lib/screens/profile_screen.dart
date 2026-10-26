@@ -8,6 +8,8 @@ import '../config/api_config.dart';
 import '../chat/chat_scope.dart';
 import 'conversation_screen.dart';
 import '../models/public_profile.dart';
+import 'rating_screen.dart';
+import 'safety_screen.dart';
 import '../theme/beef_colors.dart';
 
 /// Another guy's profile (`GET /api/profile/:id`).
@@ -41,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _profile = null;
     });
     try {
       // Read the session without subscribing (event handler, not build).
@@ -49,8 +52,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         baseUrl: ApiConfig.baseUrl,
         tokenStore: auth.tokenStore,
       );
-      final PublicProfile profile = await DiscoveryApi(client)
-          .profile(widget.userId);
+      final PublicProfile profile;
+      try {
+        profile = await DiscoveryApi(client).profile(widget.userId);
+      } finally {
+        client.close();
+      }
       if (!mounted) return;
       setState(() {
         _profile = profile;
@@ -76,6 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           builder: (_) => ConversationScreen(thread: thread),
         ),
       );
+      if (mounted) await _load();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,11 +100,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _rate() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => RatingScreen(userId: widget.userId),
+    ));
+    if (mounted) await _load();
+  }
+
+  Future<void> _safety() async {
+    final blocked = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+      builder: (_) => SafetyScreen(userId: widget.userId),
+    ));
+    if (!mounted) return;
+    if (blocked == true) {
+      ChatScope.read(context).confirmBlock(widget.userId);
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(_profile?.displayName ?? 'PROFILE')),
+      appBar: AppBar(title: Text(_profile?.displayName ?? 'PROFILE'), actions: [
+        IconButton(tooltip: 'Safety options', onPressed: _safety,
+          icon: const Icon(Icons.shield_outlined)),
+      ]),
       bottomNavigationBar: _profile == null
           ? null
           : SafeArea(
@@ -118,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ? _ProfileError(message: _error, onRetry: _load)
             : _profile == null
             ? _ProfileError(message: 'Profile not found.', onRetry: _load)
-            : _ProfileBody(profile: _profile!, theme: theme),
+            : _ProfileBody(profile: _profile!, theme: theme, onRate: _rate),
       ),
     );
   }
@@ -168,10 +197,11 @@ class _ProfileError extends StatelessWidget {
 }
 
 class _ProfileBody extends StatelessWidget {
-  const _ProfileBody({required this.profile, required this.theme});
+  const _ProfileBody({required this.profile, required this.theme, required this.onRate});
 
   final PublicProfile profile;
   final ThemeData theme;
+  final VoidCallback onRate;
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +261,12 @@ class _ProfileBody extends StatelessWidget {
               const _CertifiedCutBadge(),
             ],
           ],
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: onRate,
+          icon: const Icon(Icons.star_outline),
+          label: const Text('Rate this Guy'),
         ),
         if (profile.ageBucket != null) ...<Widget>[
           const SizedBox(height: 4),

@@ -58,8 +58,8 @@ results belong to the feature PR; private beta still needs a real-device pass.
 
 | Item | Notes |
 |------|-------|
-| Block/report and privacy-settings UI | Backend endpoints exist; no client UI. |
-| Profile rating system ("Rate this Guy") | Migration 0009 and GET/POST `/api/ratings/:id` now enforce the approved mutual-message five-minute rule and one re-rateable 1–5-star vote per pair. Locally verified with synthetic data. Flutter prompt and public aggregate API/display remain unbuilt. |
+| Block/report and privacy-settings UI | Local Flutter source and tests now exist, wired to the existing backend. Flutter compile/tests and device behavior are unverified; blocked-user/unblock management remains separate. |
+| Profile rating system ("Rate this Guy") | Migration 0009 and GET/POST `/api/ratings/:id` enforce the approved mutual-message five-minute rule and one re-rateable 1–5-star vote per pair, verified locally with synthetic data. Flutter eligibility/submission UI and tests are authored but unrun. Public aggregate API/display remains outside this step per the latest instruction. |
 
 ## Also true (from the owner-endorsed plan, mapped to reality)
 

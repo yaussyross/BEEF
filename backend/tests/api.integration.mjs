@@ -119,6 +119,11 @@ try {
   const privateGrid = await api('/api/grid', { token: a.token });
   publicPayload(privateGrid);
   assert.equal(privateGrid.items.find(item => item.user_id === b.id).distance, 'nearby');
+  await api('/api/profile', { token: b.token, method: 'PUT', body: { coarse_location: 'exact', hide_distance: false } });
+  const exactGrid = await api('/api/grid', { token: a.token });
+  publicPayload(exactGrid);
+  assert.match(exactGrid.items.find(item => item.user_id === b.id).distance, /^\d+(\.\d)? mi$/);
+  await api('/api/profile', { token: b.token, method: 'PUT', body: { coarse_location: 'region', hide_distance: true } });
   console.log('PASS intent-array decoding, grid distance buckets and public payload privacy');
 
   const ab = (await api('/api/threads', { token: a.token, method: 'POST', status: 201, body: { other_user_id: b.id } })).thread.id;
@@ -201,6 +206,12 @@ try {
   assert.equal((await sql`SELECT count(*)::int AS n FROM profile_ratings WHERE rater_id = ${a.id} AND ratee_id = ${b.id}`)[0].n, 1);
   console.log('PASS ratings enforce mutual 299/300/301-second boundaries, reject timing/identity/input abuse and replace concurrent re-ratings');
 
+  await api('/api/report', { token: c.token, method: 'POST', status: 400,
+    body: { report_type: 'other', thread_id: ab, reason: 'Synthetic nonparticipant attempt' } });
+  await api('/api/report', { token: a.token, method: 'POST', status: 201,
+    body: { report_type: 'harassment', thread_id: ab, reason: 'Synthetic participant report' } });
+  console.log('PASS in-chat report accepts a participant and rejects outsiders');
+
   await api('/api/block', { token: a.token, method: 'POST', body: { blocked_user_id: b.id } });
   assert.equal(await sa.closed(), 4000);
   assert.equal(await sb.closed(), 4000);
@@ -218,6 +229,12 @@ try {
     body: { report_type: 'csam', reported_user_id: b.id, reason: 'Synthetic integration fixture; no real content' } });
   assert.equal(await sb2.closed(), 4001);
   await api('/api/me', { token: b.token, status: 403 });
+  await api('/api/profile', { token: b.token, method: 'PUT', status: 403,
+    body: { coarse_location: 'city', hide_distance: false } });
+  await api('/api/report', { token: b.token, method: 'POST', status: 403,
+    body: { reported_user_id: a.id, report_type: 'other', reason: 'Suspended synthetic fixture' } });
+  await api('/api/block', { token: b.token, method: 'POST', status: 403,
+    body: { blocked_user_id: a.id } });
   await api('/api/refresh', { method: 'POST', status: 403, body: { refreshToken: b.refresh } });
   await api('/api/ws', { token: b.token, status: 403 });
   await api(`/api/ratings/${a.id}`, { token: b.token, method: 'POST', status: 403, body: { stars: 2 } });

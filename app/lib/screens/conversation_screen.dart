@@ -7,6 +7,8 @@ import '../chat/chat_scope.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
 import '../theme/beef_colors.dart';
+import 'rating_screen.dart';
+import 'safety_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   const ConversationScreen({super.key, required this.thread});
@@ -19,6 +21,7 @@ class ConversationScreen extends StatefulWidget {
 class _ConversationScreenState extends State<ConversationScreen> {
   final _draft = TextEditingController();
   ChatController? _chat;
+  bool _openingAction = false;
 
   @override
   void didChangeDependencies() {
@@ -57,6 +60,41 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  Future<void> _rate() async {
+    if (_openingAction) return;
+    setState(() => _openingAction = true);
+    final chat = _chat!;
+    chat.leaveThread(widget.thread.id);
+    try {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => RatingScreen(userId: widget.thread.otherUserId),
+      ));
+    } finally {
+      if (mounted) {
+        await chat.openThread(widget.thread);
+        if (mounted) setState(() => _openingAction = false);
+      }
+    }
+  }
+
+  Future<void> _safety() async {
+    if (_openingAction) return;
+    setState(() => _openingAction = true);
+    final chat = _chat!;
+    chat.leaveThread(widget.thread.id);
+    final blocked = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+      builder: (_) => SafetyScreen(userId: widget.thread.otherUserId, threadId: widget.thread.id),
+    ));
+    if (!mounted) return;
+    if (blocked == true) {
+      chat.confirmBlock(widget.thread.otherUserId);
+      Navigator.of(context).pop();
+    } else {
+      await chat.openThread(widget.thread);
+      if (mounted) setState(() => _openingAction = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final chat = ChatScope.of(context);
@@ -66,6 +104,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       appBar: AppBar(
         title: Text(widget.thread.displayName),
         actions: [
+          IconButton(tooltip: 'Safety options', onPressed: _openingAction ? null : _safety,
+            icon: const Icon(Icons.shield_outlined)),
+          IconButton(
+            tooltip: 'Rate this Guy',
+            onPressed: chat.unavailable || _openingAction ? null : _rate,
+            icon: const Icon(Icons.star_outline),
+          ),
           IconButton(
             tooltip: 'Refresh conversation',
             onPressed: chat.historyLoading ? null : chat.refreshHistory,

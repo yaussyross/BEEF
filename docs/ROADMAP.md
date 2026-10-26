@@ -45,14 +45,15 @@ Ordered by dependency; the first is the highest-priority unstarted item in the r
    verified `block` / `report` endpoints; privacy/trust settings surfaced in-app
    (coarse-location modes, hide-distance toggle, opt-in sharing — whatever the
    API exposes; see `backend/src/lib/privacy.ts`).
-3. ⬜ **Profile rating system ("Rate this Guy")** — backend eligibility/write path implemented locally; client and aggregate display remain:
+   Local UI and tests are now authored; Flutter/device validation is still pending.
+3. ⬜ **Profile rating system ("Rate this Guy")** — backend eligibility/write path verified locally; client source authored with validation pending:
    - [x] Migration `0009` — ratings table (rater, ratee, stars 1–5, created_at,
          unique on (rater, ratee))
    - [x] Endpoint — GET eligibility / POST rating, **unlocked only after messages
          from both people span ≥5 minutes** (owner approved October 26);
          re-rating allowed, **latest database write wins**.
-   - [ ] Public aggregate API and display next to the username
-   - [ ] Client prompt + stars UI ("Rate this Guy")
+   - [ ] Public aggregate API and display next to the username (held outside this step by latest instruction)
+   - [ ] Client prompt + stars UI ("Rate this Guy") — source/tests authored, Flutter validation pending
    - [ ] Grid/profile display of the aggregate rating
 4. ⬜ **Bundle store assets into the app** — link the shipped fonts
    (`design/store/fonts/`: Unbounded + Space Grotesk) per the note in

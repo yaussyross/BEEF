@@ -51,7 +51,7 @@ The runner removes both containers, tmpfs data and the private network in
 The first implementation attempted host publishing on an internal network;
 Docker exposed no port. The final runner uses no host publishing at all.
 
-## Current coverage: eleven passing groups
+## Current coverage: twelve passing groups
 
 - Empty migrated database reached through actual Neon HTTP queries.
 - Registration/login/refresh, JWT audience isolation, missing authentication
@@ -63,6 +63,9 @@ Docker exposed no port. The final runner uses no host publishing at all.
   over both REST and WebSocket without delivery to the wrong recipient.
 - Block/unblock, bidirectional read/send rejection, inbox removal and immediate
   socket closure from a bundled REST route.
+- Thread reporting accepts participants and rejects outsiders. Suspended accounts
+  cannot update privacy settings, submit reports or block users. Explicit exact
+  location mode returns a rounded distance without coordinates.
 - Ratings: mutual message-span boundaries at 299/300/301 seconds; one-sided and
   client-timing/identity abuse rejected; integer star range; concurrent re-rating
   keeps one vote and the final write wins; block/suspension prevents later votes.
@@ -76,7 +79,7 @@ Docker exposed no port. The final runner uses no host publishing at all.
   active socket, and allows access again when transport is restored.
 - Every persisted account verified to be a synthetic fixture.
 
-Output: [`artifacts/audit-2026-10-26/ratings-api-integration.txt`](../../artifacts/audit-2026-10-26/ratings-api-integration.txt).
+Latest output: [`artifacts/audit-2026-10-26/private-controls-api.txt`](../../artifacts/audit-2026-10-26/private-controls-api.txt).
 
 ## Limits
 

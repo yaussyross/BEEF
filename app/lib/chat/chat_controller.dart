@@ -477,6 +477,9 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Call only after the block API confirms success, including when WS is offline.
+  void confirmBlock(String otherUserId) => _invalidate(otherUserId);
+
   void _invalidate(String otherUserId) {
     _blockedUsers.add(otherUserId);
     for (final thread in _threads.where((t) => t.otherUserId == otherUserId)) {
@@ -498,7 +501,7 @@ class ChatController extends ChangeNotifier {
 
   String _describe(Object error) {
     if (error is ApiException) {
-      if (error.statusCode == 401) {
+      if (error.statusCode == 401 || error.code == 'account_disabled') {
         onSessionExpired?.call();
       }
       return error.message;
