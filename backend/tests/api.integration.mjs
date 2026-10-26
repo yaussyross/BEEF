@@ -157,12 +157,58 @@ try {
   assert.equal(inbox.threads.find(thread => thread.id === ab).unread_count, 0);
   console.log('PASS real WebSocket send/ack/delivery/read and REST history/idempotency/privacy/participant guards');
 
+  const ratingPath = `/api/ratings/${b.id}`;
+  assert.deepEqual(await api(ratingPath, { token: a.token }), { eligible: false, my_rating: null });
+  await api(ratingPath, { token: a.token, method: 'POST', status: 403,
+    body: { stars: 5, eligible: true, rater_id: c.id, started_at: '2000-01-01' } });
+  await api(`/api/ratings/${a.id}`, { token: a.token, method: 'POST', status: 400, body: { stars: 5 } });
+  await api(ratingPath, { status: 401 });
+  await api('/api/ratings/not-a-uuid', { token: a.token, status: 400 });
+  await api(`/api/ratings/${crypto.randomUUID()}`, { token: a.token, status: 404 });
+  for (const stars of [0, 6, 1.5, '5', null]) {
+    await api(ratingPath, { token: a.token, method: 'POST', status: 400, body: { stars } });
+  }
+  // Only this fixture setup changes stored timestamps; API clients cannot.
+  await sql`UPDATE chat_messages SET created_at = CASE WHEN client_message_id = 'ws-one'
+    THEN timestamptz '2025-01-01 00:00:00Z' ELSE timestamptz '2025-01-01 00:05:00Z' END
+    WHERE thread_id = ${ab}`;
+  assert.equal((await api(ratingPath, { token: a.token })).eligible, false);
+  const mutual = await api(`/api/threads/${ab}/messages`, { token: b.token, method: 'POST', status: 201,
+    body: { client_message_id: 'mutual-reply', body: 'Hello back', created_at: '2000-01-01' } });
+  assert.ok(new Date(mutual.message.created_at).getTime() > Date.now() - 60000);
+  async function span(seconds) {
+    await sql`UPDATE chat_messages SET created_at = timestamptz '2025-01-01 00:00:00Z'
+      + CASE WHEN sender_id = ${b.id} THEN make_interval(secs => ${seconds}) ELSE interval '0 seconds' END
+      WHERE thread_id = ${ab}`;
+  }
+  await span(299);
+  assert.equal((await api(ratingPath, { token: a.token })).eligible, false);
+  await api(ratingPath, { token: a.token, method: 'POST', status: 403, body: { stars: 5 } });
+  await span(300);
+  const eligible = await api(ratingPath, { token: a.token });
+  publicPayload(eligible);
+  assert.deepEqual(eligible, { eligible: true, my_rating: null });
+  await api(ratingPath, { token: a.token, method: 'POST', body: { stars: 1, rater_id: c.id } });
+  await api(ratingPath, { token: a.token, method: 'POST', body: { stars: 5 } });
+  assert.equal((await api(ratingPath, { token: a.token })).my_rating, 5);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM profile_ratings WHERE rater_id = ${c.id}`)[0].n, 0);
+  await span(301);
+  assert.equal((await api(ratingPath, { token: b.token, status: 400 })).error, 'self_rating');
+  await api(`/api/ratings/${a.id}`, { token: b.token, method: 'POST', body: { stars: 3 } });
+  await Promise.all([1, 2, 3, 4, 5].map(stars => api(ratingPath, { token: a.token, method: 'POST', body: { stars } })));
+  await api(ratingPath, { token: a.token, method: 'POST', body: { stars: 4 } });
+  assert.equal((await api(ratingPath, { token: a.token })).my_rating, 4);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM profile_ratings WHERE rater_id = ${a.id} AND ratee_id = ${b.id}`)[0].n, 1);
+  console.log('PASS ratings enforce mutual 299/300/301-second boundaries, reject timing/identity/input abuse and replace concurrent re-ratings');
+
   await api('/api/block', { token: a.token, method: 'POST', body: { blocked_user_id: b.id } });
   assert.equal(await sa.closed(), 4000);
   assert.equal(await sb.closed(), 4000);
   await api(`/api/threads/${ab}/messages`, { token: b.token, status: 403 });
   await api(`/api/threads/${ab}/messages`, { token: a.token, method: 'POST', status: 403, body: { client_message_id: 'blocked', body: 'hello' } });
   assert.equal((await api('/api/threads', { token: b.token })).threads.length, 0);
+  await api(ratingPath, { token: a.token, method: 'POST', status: 404, body: { stars: 2 } });
+  await api(`/api/ratings/${a.id}`, { token: b.token, method: 'POST', status: 404, body: { stars: 2 } });
   await api('/api/block', { token: a.token, method: 'DELETE', body: { blocked_user_id: b.id } });
   console.log('PASS REST block closes sockets across bundled modules and prevents both directions of access');
 
@@ -174,6 +220,8 @@ try {
   await api('/api/me', { token: b.token, status: 403 });
   await api('/api/refresh', { method: 'POST', status: 403, body: { refreshToken: b.refresh } });
   await api('/api/ws', { token: b.token, status: 403 });
+  await api(`/api/ratings/${a.id}`, { token: b.token, method: 'POST', status: 403, body: { stars: 2 } });
+  await api(ratingPath, { token: a.token, method: 'POST', status: 404, body: { stars: 2 } });
   await api(`/api/threads/${ab}/messages`, { token: a.token, status: 404 });
   assert.equal((await api('/api/threads', { token: a.token })).threads.some(thread => thread.id === ab), false);
   console.log('PASS synthetic report suspension closes sockets and rejects existing tokens/refresh/upgrade/chat');

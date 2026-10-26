@@ -263,3 +263,11 @@ test('read acknowledgements cannot bypass a block', async () => {
   await expect(markThreadRead('sender', 'current-thread')).rejects.toMatchObject({ code: 'blocked' });
   expect(queries.some(query => /UPDATE/.test(query))).toBe(false);
 });
+
+const { validateStars } = await import('../src/lib/ratings');
+test('rating rejects fractional, out-of-range and coerced input', () => {
+  for (const value of [0, 6, -1, 1.5, NaN, Infinity, '5', null, true, {}, []]) {
+    expect(() => validateStars(value)).toThrow();
+  }
+  for (const value of [1, 2, 3, 4, 5]) expect(() => validateStars(value)).not.toThrow();
+});

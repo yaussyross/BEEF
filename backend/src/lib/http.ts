@@ -1,3 +1,4 @@
+import { RatingError } from "~/lib/ratings";
 import { AuthError } from "~/lib/auth";
 import { ChatError } from "~/lib/chat";
 import { ModerationError } from "~/lib/moderation";
@@ -37,7 +38,7 @@ export function errorResponse(err: unknown): Response {
   if (err instanceof AuthError) {
     return json({ error: err.code, message: err.message }, { status: err.status });
   }
-  if (err instanceof ChatError) {
+  if (err instanceof ChatError || err instanceof RatingError) {
     return json({ error: err.code, message: err.message }, { status: err.status });
   }
   if (err instanceof ModerationError) {

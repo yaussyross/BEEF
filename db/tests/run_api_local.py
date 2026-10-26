@@ -12,6 +12,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES = 'postgis/postgis@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6'
 PROXY = 'ghcr.io/timowilhelm/local-neon-http-proxy@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a'
+MIGRATION_COUNT = len(list((ROOT / 'db/migrations').glob('[0-9][0-9][0-9][0-9]_*.sql')))
 NAME = 'beef-api-test-' + secrets.token_hex(5)
 PASSWORD = secrets.token_hex(24)
 BUN = shutil.which('bun')
@@ -46,7 +47,7 @@ try:
     migration = run('docker', 'exec', NAME + '-db', 'env',
                     'DATABASE_URL=postgresql:///beef_test?user=postgres',
                     'bash', '/tmp/beef-db/migrate.sh')
-    assert migration.stdout.count('apply  ') == 8, 'Fresh migration count mismatch'
+    assert migration.stdout.count('apply  ') == MIGRATION_COUNT, 'Fresh migration count mismatch'
     # Regenerate the local CA/certificate together in this disposable container:
     # upstream image's baked certificate may be expired. Caddy still verifies it.
     startup = ('openssl req -new -x509 -days 1 -nodes -out server.pem -keyout server.key '

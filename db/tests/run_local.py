@@ -10,6 +10,7 @@ import time
 
 IMAGE = 'postgis/postgis@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6'
 ROOT = Path(__file__).resolve().parents[2]
+MIGRATION_COUNT = len(list((ROOT / 'db/migrations').glob('[0-9][0-9][0-9][0-9]_*.sql')))
 NAME = 'beef-local-test-' + secrets.token_hex(5)
 
 def run(*args, check=True):
@@ -41,15 +42,17 @@ try:
     migration = ['env', 'DATABASE_URL=postgresql:///beef_test?user=postgres',
                  'bash', '/tmp/beef-db/migrate.sh']
     first = execute(*migration)
-    assert first.count('apply  ') == 8, first
-    print('PASS: all eight migrations applied to fresh local database', flush=True)
+    assert first.count('apply  ') == MIGRATION_COUNT, first
+    print('PASS: all migrations applied to fresh local database', flush=True)
     second = execute(*migration)
-    assert second.count('skip   ') == 8 and 'apply  ' not in second, second
-    print('PASS: second migration run skips all eight files', flush=True)
+    assert second.count('skip   ') == MIGRATION_COUNT and 'apply  ' not in second, second
+    print('PASS: second migration run skips all migration files', flush=True)
     result = execute('psql', '-U', 'postgres', '-d', 'beef_test', '-v',
-                     'ON_ERROR_STOP=1', '-f', '/tmp/beef-db/tests/contracts.sql')
+                     'ON_ERROR_STOP=1', '-v', f'migration_count={MIGRATION_COUNT}', '-f', '/tmp/beef-db/tests/contracts.sql')
     print(result, flush=True)
     assert 'FAIL:' not in result
+    print(execute('psql', '-U', 'postgres', '-d', 'beef_test', '-v',
+                  'ON_ERROR_STOP=1', '-f', '/tmp/beef-db/tests/ratings.sql'), flush=True)
     assert execute('psql', '-U', 'postgres', '-d', 'beef_test', '-At', '-c',
                    'SELECT count(*) FROM users;').strip() == '0'
 except subprocess.CalledProcessError as error:

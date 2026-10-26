@@ -8,7 +8,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT pg_temp.assert_true((SELECT count(*) = 8 FROM schema_migrations), 'all eight migrations tracked');
+SELECT pg_temp.assert_true((SELECT count(*) = :migration_count FROM schema_migrations), 'all migrations tracked');
 SELECT pg_temp.assert_true((SELECT count(*) = 0 FROM users), 'fresh database contains no users');
 SELECT pg_temp.assert_true((SELECT count(*) > 0 FROM interests), 'interest taxonomy seeded');
 
