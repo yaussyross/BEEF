@@ -250,6 +250,11 @@ export async function sendMessage(
   if (!message) {
     throw new ChatError(500, "send_failed", "Could not persist the message.");
   }
+  // The dedupe key is sender-wide, not thread-wide. Never route a stored
+  // message from another conversation to the newly requested recipient.
+  if (message.thread_id !== thread.id) {
+    throw new ChatError(409, "client_message_id_conflict", "Use a new client_message_id for a different conversation.");
+  }
   return { message, recipientId, created: false };
 }
 
