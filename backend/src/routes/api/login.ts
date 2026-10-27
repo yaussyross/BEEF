@@ -1,3 +1,4 @@
+import { requireAllowedTestEmail } from "~/lib/closed-test";
 import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
 import { AuthError, issueTokens, normalizeEmail, verifyPassword } from "~/lib/auth";
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/api/login")({
         }
 
         try {
+          requireAllowedTestEmail(email);
           const rows = await sql()`SELECT id, email, password_hash, status
                                  FROM users
                                  WHERE email = ${email}

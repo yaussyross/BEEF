@@ -1,9 +1,13 @@
+import { closedTestPolicy } from "~/lib/closed-test";
 import { createFileRoute } from '@tanstack/react-router';
 import { sql } from '~/db';
-import { json, readJson } from '~/lib/http';
+import { json, readJson, errorResponse } from '~/lib/http';
 
 export const Route = createFileRoute('/api/waitlist')({ server: { handlers: {
   POST: async ({ request }) => {
+    try {
+      if (closedTestPolicy().closed) return json({ ok: false, error: "Waitlist is disabled for the closed test." }, { status: 403 });
+    } catch (error) { return errorResponse(error); }
     const body = await readJson(request);
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {

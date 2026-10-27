@@ -1,3 +1,5 @@
+import { closedTestPolicy } from "./closed-test";
+import { requireAuth } from "./auth";
 import { sql } from "~/db";
 import { dropSocketsForUser } from "../ws/registry";
 
@@ -401,7 +403,8 @@ export class ModerationError extends Error {
  * unconfigured (the route must not accidentally be open), 401 when it's missing
  * or wrong.
  */
-export function requireModerationAdmin(request: Request): void {
+export async function requireModerationAdmin(request: Request): Promise<void> {
+  if (closedTestPolicy().closed) await requireAuth(request);
   const key = process.env.MODERATION_ADMIN_KEY;
   if (!key || key.length < 16) {
     throw new ModerationError(

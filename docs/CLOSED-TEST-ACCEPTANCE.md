@@ -16,7 +16,8 @@ synthetic scenarios and destroys them after testing.
 - Explicitly approved host/database with verified free or already-authorized
   capacity, private access controls covering HTTP and WebSocket, and no open
   signup/waitlist surface reachable by unapproved visitors. Configure those
-  controls for the selected host; current source is not itself an invite gate.
+  controls for the selected host. The server now also requires an exact account
+  allowlist in closed-test mode; see DATABASE-AND-CLOSED-TEST.md.
 - Approval for staging-only secret creation/storage and synthetic-data persistence,
   retention/cleanup and backups. A new account, OAuth permission, public endpoint
   or live migration is not authorized by the closed-test choice.

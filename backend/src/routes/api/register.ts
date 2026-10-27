@@ -1,3 +1,4 @@
+import { requireAllowedTestEmail } from "~/lib/closed-test";
 import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
 import {
@@ -58,6 +59,7 @@ export const Route = createFileRoute("/api/register")({
         }
 
         try {
+          requireAllowedTestEmail(email);
           const passwordHash = await hashPassword(password);
 
           // Atomic user+profile insert. ON CONFLICT DO NOTHING + no returned row

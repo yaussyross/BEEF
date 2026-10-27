@@ -1,3 +1,4 @@
+process.env.BEEF_ACCESS_MODE = 'open';
 import { test, expect } from 'bun:test';
 import { mkdtemp, writeFile, mkdir, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -6,13 +7,16 @@ import { serverConfig } from '../src/server/config';
 import { createRuntime } from '../src/server/runtime';
 import type { ChatServer } from '../src/ws/chat';
 
-const env = { DATABASE_URL: 'postgres://fixture:fixture@localhost/fixture',
+const env = { BEEF_ACCESS_MODE: 'open', DATABASE_URL: 'postgres://fixture:fixture@localhost/fixture',
   JWT_SECRET: 'synthetic-jwt-secret-00000000000000', MODERATION_ADMIN_KEY: 'synthetic-admin-key-00000000000000' };
 const server = { upgrade: () => false } as ChatServer;
 const request = (path: string, method = 'GET') => new Request('http://localhost' + path, { method });
 
 test('explicit runtime config defaults to loopback and validates without disclosing values', () => {
   expect(serverConfig(env)).toEqual({ host: '127.0.0.1', port: 3000, readinessTimeoutMs: 2000, shutdownTimeoutMs: 10000 });
+  expect(() => serverConfig({ ...env, BEEF_ACCESS_MODE: undefined })).toThrow('Test access is unavailable.');
+  expect(() => serverConfig({ ...env, BEEF_DATABASE_DRIVER: 'typo' })).toThrow('Invalid BEEF_DATABASE_DRIVER');
+  expect(serverConfig({ ...env, BEEF_ACCESS_MODE: 'closed_test', BEEF_CLOSED_TEST_EMAILS: 'fixture@example.test' }).host).toBe('127.0.0.1');
   expect(serverConfig({ ...env, BEEF_HOST: '0.0.0.0', BEEF_PORT: '8080' }).port).toBe(8080);
   for (const value of ['0', '-1', '65536', '3000oops', '']) expect(() => serverConfig({ ...env, BEEF_PORT: value })).toThrow('Invalid BEEF_PORT');
   expect(() => serverConfig({ ...env, JWT_SECRET: '' })).toThrow('JWT_SECRET');

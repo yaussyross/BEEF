@@ -1,3 +1,4 @@
+process.env.BEEF_ACCESS_MODE = 'open';
 import { afterAll, afterEach, beforeAll, expect, mock, test } from "bun:test";
 
 let results: (unknown[] | Error)[] = [];

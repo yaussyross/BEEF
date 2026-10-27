@@ -1,3 +1,4 @@
+import { AccessGateError } from "./closed-test";
 import { RatingError } from "~/lib/ratings";
 import { AuthError } from "~/lib/auth";
 import { ChatError } from "~/lib/chat";
@@ -35,7 +36,7 @@ export async function readJson(request: Request): Promise<Record<string, unknown
 
 /** Turn a thrown error into a JSON response (AuthError carries status/code). */
 export function errorResponse(err: unknown): Response {
-  if (err instanceof AuthError) {
+  if (err instanceof AuthError || err instanceof AccessGateError) {
     return json({ error: err.code, message: err.message }, { status: err.status });
   }
   if (err instanceof ChatError || err instanceof RatingError) {

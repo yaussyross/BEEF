@@ -1,3 +1,4 @@
+import { closeNativeDatabases } from "./src/native-db";
 // Persistent HTTP + WebSocket service. Build first. TLS belongs to the proxy.
 // No port takeover, sudo, automatic migrations or deployment on startup.
 import handler from './dist/server/server.js';
@@ -26,7 +27,7 @@ async function shutdown() {
   hub().clear();
   const deadline = setTimeout(() => { void server.stop(true); }, config.shutdownTimeoutMs);
   try { await server.stop(false); }
-  finally { clearTimeout(deadline); }
+  finally { clearTimeout(deadline); await closeNativeDatabases(); }
 }
 process.on('SIGTERM', () => { void shutdown(); });
 process.on('SIGINT', () => { void shutdown(); });

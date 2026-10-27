@@ -1,3 +1,6 @@
+import { closedTestPolicy } from "../lib/closed-test";
+import { requireAuth } from "../lib/auth";
+import { errorResponse } from "../lib/http";
 import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { sql } from '../db';
@@ -10,6 +13,7 @@ const migrations = ['0001_extensions.sql', '0002_enums.sql', '0003_tables.sql',
   '0011_report_content_containment.sql'];
 
 export async function databaseReady(signal: AbortSignal): Promise<boolean> {
+  closedTestPolicy();
   const rows = await sql().query(`SELECT
     (SELECT count(*) FROM schema_migrations WHERE version = ANY($1::text[]))::int AS n,
     (SELECT count(*) FROM (SELECT client_report_id, request_hash FROM reports LIMIT 0) r) AS reports_ok,
@@ -52,6 +56,10 @@ export function createRuntime(options: {
       }
       if (draining) return json(503, 'unavailable');
       if (pathname === '/api/ws') return handleChatUpgrade(request, server);
+      if (pathname.startsWith('/api/') && !['/api/login', '/api/register', '/api/refresh', '/api/waitlist'].includes(pathname)) {
+        try { if (closedTestPolicy().closed) await requireAuth(request); }
+        catch (error) { return errorResponse(error); }
+      }
       // Only serve regular files inside the built public tree, even through
       // encoded paths or symlinks. APIs and other methods go to the router.
       if (pathname !== '/' && !pathname.startsWith('/api/') && ['GET', 'HEAD'].includes(request.method)) {

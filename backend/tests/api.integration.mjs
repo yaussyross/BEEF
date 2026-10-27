@@ -9,7 +9,14 @@ assert.equal(endpoint.hostname, '127.0.0.1');
 assert.equal(endpoint.protocol, 'http:');
 assert.equal(database.hostname, 'db.localtest.me');
 assert.equal(database.pathname, '/beef_test');
-process.env.DATABASE_URL = database.href;
+const native = process.env.BEEF_DATABASE_DRIVER === 'postgres';
+const appDatabaseUrl = native ? process.env.BEEF_TEST_NATIVE_DATABASE_URL : database.href;
+if (native) {
+  const direct = new URL(appDatabaseUrl);
+  assert.equal(direct.hostname, 'postgres'); assert.equal(direct.pathname, '/beef_test');
+}
+process.env.DATABASE_URL = appDatabaseUrl;
+process.env.BEEF_ACCESS_MODE = 'open';
 process.env.JWT_SECRET = 'isolated-test-only-' + crypto.randomUUID();
 process.env.MODERATION_ADMIN_KEY = 'isolated-moderation-' + crypto.randomUUID();
 process.env.IMAGE_MODERATION_API_KEY = '';
@@ -23,6 +30,28 @@ for (let attempt = 0; attempt < 60; attempt++) {
 assert.ok(ready, 'Local Neon HTTP proxy did not become ready');
 assert.equal((await sql`SELECT count(*)::int AS n FROM users`)[0].n, 0);
 console.log('PASS fresh migrated PostgreSQL reachable through real Neon HTTP driver');
+if (native) {
+  const { sql: applicationSql } = await import('../src/db.ts');
+  const db = applicationSql();
+  const payload = "synthetic'); DROP TABLE users; --";
+  const row = (await db`SELECT ${payload}::text AS value, ${['one', 'two']}::text[] AS tags,
+    '2026-01-01T00:00:00Z'::timestamptz AS at, ${true}::boolean AS active`)[0];
+  assert.equal(row.value, payload); assert.deepEqual(row.tags, ['one', 'two']);
+  assert.equal(row.at, '2026-01-01T00:00:00.000Z'); assert.equal(row.active, true);
+  const pending = db`INSERT INTO waitlist_emails (email) VALUES ('native-rollback@example.test')`;
+  assert.equal((await sql`SELECT count(*)::int AS n FROM waitlist_emails WHERE email = 'native-rollback@example.test'`)[0].n, 0);
+  await assert.rejects(db.transaction([pending, db`SELECT 1 / 0`]));
+  assert.equal((await sql`SELECT count(*)::int AS n FROM waitlist_emails WHERE email = 'native-rollback@example.test'`)[0].n, 0);
+  console.log('Native contract: bound values and rollback verified; checking cancellation');
+  const abort = new AbortController(); const started = Date.now();
+  const aborted = Promise.resolve(db.query('SELECT pg_sleep(10)', [], { fetchOptions: { signal: abort.signal } }));
+  const assertion = assert.rejects(aborted);
+  setTimeout(() => abort.abort(), 30); await assertion;
+  assert.ok(Date.now() - started < 2000, 'Native readiness cancellation must not wait for SQL completion');
+  assert.equal((await db`SELECT 1::int AS n`)[0].n, 1);
+  console.log('PASS native PostgreSQL parameter binding, array/date/boolean compatibility, lazy atomic rollback and cancellation/recovery');
+}
+
 
 const { default: handler } = await import('../dist/server/server.js');
 const { chatWebSocketHandlers } = await import('../src/ws/chat.ts');
@@ -131,6 +160,13 @@ try {
   await api('/api/register', { method: 'POST', status: 403,
     body: { email: 'underage-fixture@example.test', password, birthdate: '2020-01-01' } });
   const a = await register('fictional-adult-a');
+  if (native) {
+    neonConfig.fetchEndpoint = 'http://127.0.0.1:1/sql';
+    try { await api('/api/me', { token: a.token }); }
+    finally { neonConfig.fetchEndpoint = endpoint.href; }
+    console.log('PASS native application requests work while Neon HTTP transport is unavailable');
+  }
+
   const b = await register('fictional-adult-b');
   const c = await register('fictional-adult-c');
   await api('/api/login', { method: 'POST', body: { email: 'fictional-adult-a@example.test', password } });
@@ -517,9 +553,55 @@ try {
   console.log('PASS direct status change is enforced on an existing socket next action and HTTP request');
 
   const d = await register('fictional-adult-d');
+  const outside = await register('fictional-outsider');
+  const oldSocket = await connect(outside.token);
+  process.env.BEEF_ACCESS_MODE = 'closed_test';
+  process.env.BEEF_CLOSED_TEST_EMAILS = ' Fictional-Adult-D@Example.Test ,fictional-new-tester@example.test';
+  try {
+    const protectedPaths = ['/api/me', '/api/profile', '/api/grid', '/api/threads', '/api/block', '/api/location',
+      `/api/profile/${d.id}`, `/api/threads/${ab}/messages`, `/api/threads/${ab}/read`,
+      `/api/ratings/${d.id}`, '/api/report', '/api/moderation/queue', '/api/moderation/review'];
+    for (const path of protectedPaths) {
+      for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
+        await api(path, { token: outside.token, admin: true, method, status: 403 });
+      }
+      await api(path, { status: 401 });
+    }
+    await api('/api/ws', { token: outside.token, status: 403 });
+    await api(`/api/ws?token=${encodeURIComponent(outside.token)}`, { status: 403 });
+    oldSocket.ws.send(JSON.stringify({ type: 'read', thread_id: ab }));
+    assert.equal(await oldSocket.closed(), 4001);
+    await api('/api/login', { method: 'POST', body: { email: 'fictional-outsider@example.test', password }, status: 403 });
+    await api('/api/refresh', { method: 'POST', body: { refreshToken: outside.refresh }, status: 403 });
+    await api('/api/register', { method: 'POST', body: { email: 'not-approved@example.test', password, birthdate: '1990-06-15' }, status: 403 });
+    assert.equal((await sql`SELECT count(*)::int AS n FROM users WHERE email = 'not-approved@example.test'`)[0].n, 0);
+    await api('/api/waitlist', { method: 'POST', body: { email: 'fictional-adult-d@example.test' }, status: 403 });
+    await api('/api/me', { token: d.token });
+    const { signAccessToken } = await import('../src/lib/auth.ts');
+    const misleading = await signAccessToken(outside.id, 'fictional-adult-d@example.test');
+    await api('/api/me', { token: misleading, status: 403 });
+    await api('/api/ws', { token: misleading, status: 403 });
+    await api('/api/login', { method: 'POST', body: { email: 'FICTIONAL-ADULT-D@EXAMPLE.TEST', password } });
+    await api('/api/refresh', { method: 'POST', body: { refreshToken: d.refresh } });
+    await register('fictional-new-tester');
+    const allowedSocket = await connect(d.token); allowedSocket.ws.close();
+    await api('/api/moderation/queue', { admin: true, status: 401 });
+    await api('/api/moderation/queue', { token: d.token, admin: true });
+    await api('/api/moderation/queue', { token: d.token, status: 401 });
+    process.env.BEEF_CLOSED_TEST_EMAILS = '';
+    await api('/readyz', { status: 503 });
+    await api('/healthz');
+    await api('/api/me', { token: d.token, status: 503 });
+    await api('/api/ws', { token: d.token, status: 503 });
+    await api('/api/login', { method: 'POST', body: { email: 'fictional-adult-d@example.test', password }, status: 503 });
+    await api('/api/refresh', { method: 'POST', body: { refreshToken: d.refresh }, status: 503 });
+    await api('/api/waitlist', { method: 'POST', body: { email: 'fictional-adult-d@example.test' }, status: 503 });
+    console.log('PASS closed-test allowlist covers HTTP, registration/login/refresh, admin and both socket token forms; existing access revokes and missing config fails closed');
+  } finally { process.env.BEEF_ACCESS_MODE = 'open'; delete process.env.BEEF_CLOSED_TEST_EMAILS; }
   const sd = await connect(d.token);
   // Deliberate loopback-only connection failure; restore before cleanup checks.
-  neonConfig.fetchEndpoint = 'http://127.0.0.1:1/sql';
+  if (native) process.env.DATABASE_URL = 'postgres://fixture:fixture@127.0.0.1:1/beef_test?sslmode=disable';
+  else neonConfig.fetchEndpoint = 'http://127.0.0.1:1/sql';
   try {
     sd.ws.send(JSON.stringify({ type: 'read', thread_id: ac }));
     assert.equal(await sd.closed(), 4001);
@@ -530,6 +612,7 @@ try {
     assert.equal((await api('/api/waitlist', { method: 'POST', body: { email: 'retry-after-outage@example.test' }, status: 503 })).ok, false);
   } finally {
     neonConfig.fetchEndpoint = endpoint.href;
+    process.env.DATABASE_URL = appDatabaseUrl;
   }
   await api('/api/me', { token: d.token });
   await api('/readyz');
@@ -542,4 +625,6 @@ try {
 } finally {
   for (const ws of sockets) ws.close();
   server.stop(true);
+  const { closeNativeDatabases } = await import("../src/native-db.ts");
+  await closeNativeDatabases();
 }

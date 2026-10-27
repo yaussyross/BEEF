@@ -8,6 +8,11 @@ import secrets
 import shutil
 import subprocess
 import time
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--driver', choices=['neon', 'postgres'], default='neon')
+DRIVER = parser.parse_args().driver
 
 ROOT = Path(__file__).resolve().parents[2]
 POSTGRES = 'postgis/postgis@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6'
@@ -65,6 +70,8 @@ try:
     run('docker', 'cp', str(Path(BUN).resolve()), NAME + '-proxy:/tmp/beef-bun')
     result = run('docker', 'exec', '--workdir', '/tmp/beef-backend', NAME + '-proxy',
                  'env', '-i', 'PATH=/usr/bin:/bin',
+                 'BEEF_DATABASE_DRIVER=' + DRIVER,
+                 'BEEF_TEST_NATIVE_DATABASE_URL=postgres://postgres:' + PASSWORD + '@postgres:5432/beef_test?sslmode=disable',
                  'BEEF_TEST_PROXY_URL=http://127.0.0.1:4444/sql',
                  'BEEF_TEST_DATABASE_URL=postgres://postgres:' + PASSWORD + '@db.localtest.me:5432/beef_test',
                  '/tmp/beef-bun', '--no-env-file', 'tests/api.integration.mjs', check=False)

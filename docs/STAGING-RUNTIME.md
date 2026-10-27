@@ -1,3 +1,5 @@
+> Native PostgreSQL and server-side closed-test gate: [current contract](DATABASE-AND-CLOSED-TEST.md). The older Neon-only prerequisite below is superseded when BEEF_DATABASE_DRIVER=postgres.
+
 > Current acceptance map: [27 October audit](PRODUCT-ACCEPTANCE-2026-10-27.md). Earlier dated verification statements below are historical. PR #6 reached green 8a0036f before this follow-up; later work requires its own checks. Nothing is deployed by this audit.
 
 # Local staging runtime preparation

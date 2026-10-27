@@ -32,7 +32,7 @@ jobs:
         run: bun run build
 
       - name: Chat privacy and account access regression tests
-        run: bun test tests/chat-idempotency.test.ts
+        run: bun test tests/chat-idempotency.test.ts tests/runtime.test.ts tests/closed-test.test.ts tests/native-db.test.ts
 
       # Bun types are included; every TypeScript error now fails CI.
       - name: Type-check

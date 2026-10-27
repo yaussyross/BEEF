@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/moderation/queue")({
     handlers: {
       GET: async ({ request }) => {
         try {
-          requireModerationAdmin(request);
+          await requireModerationAdmin(request);
 
           const url = new URL(request.url);
           const status = url.searchParams.get("status") ?? "pending";
