@@ -31,6 +31,8 @@ void main() {
     final editor = tester.widget<TextField>(find.widgetWithText(TextField, 'About me'));
     expect(editor.controller!.text, 'Coffee walks\n\nAsk me about: ');
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Ask me about: board games');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
@@ -96,6 +98,8 @@ void main() {
     await tester.pumpAndSettle();
     final draftController = tester.widget<TextField>(find.widgetWithText(TextField, 'About me')).controller!;
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Coffee walks');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();

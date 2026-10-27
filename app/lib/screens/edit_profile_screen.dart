@@ -76,6 +76,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Edit profile')),
     body: _loading ? const Center(child: CircularProgressIndicator()) : ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(24), children: [
         if (!_loaded && _error != null) Semantics(liveRegion: true, child: Text(_error!)),
         if (!_loaded) OutlinedButton(onPressed: _disabled ? null : _load, child: const Text('Retry')),
