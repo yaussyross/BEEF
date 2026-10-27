@@ -93,10 +93,12 @@ void main() {
     });
     await tester.pumpWidget(MaterialApp(home: EditProfileScreen(api: ProfileApi(client))));
     await tester.pumpAndSettle();
+    final draftController = tester.widget<TextField>(find.widgetWithText(TextField, 'About me')).controller!;
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Coffee walks');
     await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(find.widgetWithText(TextField, 'About me')).controller!.text, 'Coffee walks');
+    expect(draftController.text, 'Coffee walks');
+    await tester.scrollUntilVisible(find.text('Save profile'), 100, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
     expect(saves, 2); expect(find.text('Profile saved.'), findsOneWidget);
     client.close();

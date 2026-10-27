@@ -77,8 +77,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     appBar: AppBar(title: const Text('Edit profile')),
     body: _loading ? const Center(child: CircularProgressIndicator()) : ListView(
       padding: const EdgeInsets.all(24), children: [
-        if (_error != null) Semantics(liveRegion: true, child: Text(_error!)),
-        if (_confirmation != null) Semantics(liveRegion: true, child: Text(_confirmation!)),
+        if (!_loaded && _error != null) Semantics(liveRegion: true, child: Text(_error!)),
         if (!_loaded) OutlinedButton(onPressed: _disabled ? null : _load, child: const Text('Retry')),
         if (_loaded) ...[
           TextField(controller: _name, enabled: !_busy && !_disabled, maxLength: 80,
@@ -101,6 +100,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             FilterChip(label: Text(i.label), selected: _interests.contains(i.slug),
               onSelected: _busy || _disabled ? null : (v) => setState(() { v ? _interests.add(i.slug) : _interests.remove(i.slug); }))]),
           const SizedBox(height: 16),
+          if (_error != null) Semantics(liveRegion: true, child: Text(_error!)),
+          if (_confirmation != null) Semantics(liveRegion: true, child: Text(_confirmation!)),
           FilledButton(onPressed: _busy || _disabled ? null : _save, child: Text(_busy ? 'Saving…' : 'Save profile')),
         ],
       ]),
