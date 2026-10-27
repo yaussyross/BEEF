@@ -52,6 +52,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _disabled = e is ApiException && e.code == 'account_disabled';
     });
   }
+  void _addPrompt(String prompt) {
+    if (_busy || _disabled) return;
+    final draft = _bio.text.trimRight();
+    final next = '${draft.isEmpty ? '' : '$draft\n\n'}$prompt ';
+    if (next.length > 2000) {
+      setState(() => _error = 'Make room in About me before adding a starter.');
+      return;
+    }
+    _bio.value = TextEditingValue(text: next, selection: TextSelection.collapsed(offset: next.length));
+    setState(() { _confirmation = null; _error = null; });
+  }
   Future<void> _save() async {
     if (_busy || _disabled) return;
     setState(() { _busy = true; _error = null; _confirmation = null; });
@@ -74,6 +85,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             decoration: const InputDecoration(labelText: 'Display name')),
           TextField(controller: _bio, enabled: !_busy && !_disabled, maxLength: 2000, minLines: 2, maxLines: 5,
             decoration: const InputDecoration(labelText: 'About me')),
+          const Text('Optional writing starters'),
+          const Text('Add a starter, then write your own answer in About me. It is shared on your profile only when you save.'),
+          Wrap(spacing: 8, children: [
+            for (final prompt in ['My ideal weekend:', 'Ask me about:', 'A small thing I enjoy:'])
+              ActionChip(label: Text(prompt), onPressed: _busy || _disabled ? null : () => _addPrompt(prompt)),
+          ]),
+          const SizedBox(height: 16),
           const Text('Here for'),
           Wrap(spacing: 8, children: [for (final tag in IntentTag.values)
             FilterChip(label: Text(tag.label), selected: _tags.contains(tag.value),

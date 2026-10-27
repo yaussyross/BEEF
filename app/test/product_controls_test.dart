@@ -16,6 +16,28 @@ ApiClient clientFor(Future<http.Response> Function(http.Request) handler) => Api
 http.Response reply(Object data, [int code = 200]) => http.Response(jsonEncode(data), code);
 
 void main() {
+  testWidgets('writing starters remain editable drafts until explicit profile save', (tester) async {
+    final saved = <Map>[];
+    final client = clientFor((r) async {
+      if (r.method == 'GET') return reply({'user': {'id': 'self', 'bio': 'Coffee walks', 'intent_tags': [], 'interests': []}});
+      final body = jsonDecode(r.body) as Map; saved.add(body);
+      return reply({'user': {'id': 'self', ...body}});
+    });
+    await tester.pumpWidget(MaterialApp(home: EditProfileScreen(api: ProfileApi(client))));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Ask me about:'));
+    await tester.tap(find.text('Ask me about:')); await tester.pump();
+    expect(saved, isEmpty);
+    final editor = tester.widget<TextField>(find.widgetWithText(TextField, 'About me'));
+    expect(editor.controller!.text, 'Coffee walks\n\nAsk me about: ');
+    await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Ask me about: board games');
+    await tester.ensureVisible(find.text('Save profile'));
+    await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
+    expect(saved.single['bio'], 'Ask me about: board games');
+    expect(saved.single.keys.toSet(), {'display_name', 'bio', 'intent_tags', 'interests'});
+    client.close();
+  });
+
   testWidgets('message report retries retain only the exact message target', (tester) async {
     final bodies = <String>[];
     final client = clientFor((r) async {
