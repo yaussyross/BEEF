@@ -7,10 +7,16 @@ sudo chmod a+rw /dev/kvm
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 test -x "$ANDROID_HOME/platform-tools/adb"
 adb version
+export ANDROID_USER_HOME="$RUNNER_TEMP/beef-android-user"
+export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+mkdir -p "$ANDROID_AVD_HOME"
 sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
 "$sdkmanager" 'system-images;android-35;google_apis;x86_64'
-printf 'no\n' | "$avdmanager" create avd --force -n beef_synthetic -k 'system-images;android-35;google_apis;x86_64'
+printf 'no\n' | "$avdmanager" create avd --force -n beef_synthetic --device pixel_2 -p "$ANDROID_AVD_HOME/beef_synthetic.avd" -k 'system-images;android-35;google_apis;x86_64'
+test -f "$ANDROID_AVD_HOME/beef_synthetic.avd/config.ini"
+"$ANDROID_HOME/emulator/emulator" -list-avds | tee build/runtime-artifacts/avds.txt
+grep -qx beef_synthetic build/runtime-artifacts/avds.txt
 "$ANDROID_HOME/emulator/emulator" -avd beef_synthetic -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -memory 2048 -cores 2 -camera-back none -camera-front none > build/runtime-artifacts/emulator.log 2>&1 &
 emulator_pid=$!
 cleanup() {
