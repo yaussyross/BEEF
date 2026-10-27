@@ -28,9 +28,12 @@ export async function migrateNative(directory = join(import.meta.dir, 'migration
       }
       await connection.unsafe('COMMIT');
       return { applied, total: files.length };
-    } catch {
+    } catch (error) {
       try { await connection.unsafe('ROLLBACK'); } catch { /* connection shutdown below */ }
-      throw new Error('Closed-test migration failed');
+      const safe = new Error('Closed-test migration failed');
+      const code = (error as { code?: unknown })?.code;
+      if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) Object.assign(safe, { code });
+      throw safe;
     } finally { connection.release(); }
   } finally { await pool.close({ timeout: 1 }); }
 }

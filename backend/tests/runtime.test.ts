@@ -99,3 +99,11 @@ test('closed test hides landing and static pages while retaining generic health 
     expect((await runtime.fetch(request('/readyz'), server))?.status).toBe(200);
   } finally { process.env.BEEF_ACCESS_MODE = 'open'; delete process.env.BEEF_CLOSED_TEST_EMAILS; }
 });
+
+test('startup diagnostics expose only fixed codes, never driver messages or secrets', async () => {
+  const { startupDiagnostic } = await import('../src/server/startup-diagnostic');
+  expect(startupDiagnostic(new Error('Test access is unavailable.'))).toBe('invalid_test_allowlist_or_mode');
+  expect(startupDiagnostic({ code: '42501', message: 'secret SQL details' })).toBe('sqlstate_42501');
+  expect(startupDiagnostic(new Error('postgres://secret:password@private/secret'))).toBe('unclassified');
+  expect(startupDiagnostic({ code: 'secret-value', message: 'constructor' })).toBe('unclassified');
+});
