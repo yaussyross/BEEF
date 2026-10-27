@@ -97,8 +97,8 @@ synthetic-area UI and artifact-retention step require their own latest-head CI.
 No device, hosted staging, iOS or real-user acceptance has been performed.
 
 
-Native location uses geolocator 14.1.2, following the publisher's versioned docs:
-https://pub.dev/packages/geolocator/versions/14.1.2
+Native location uses geolocator 14.0.2, following the publisher's versioned docs:
+https://pub.dev/packages/geolocator/versions/14.0.2
 Generated Android permissions request coarse foreground access only and remove
 background/foreground-service location declarations. iOS uses WhenInUse with the
 Always bypass macro; Swift Package Manager builds must set
@@ -107,3 +107,7 @@ folders are committed. Default builds keep the native action disabled; no real
 position was collected, sent or stored. The hardware permission path and iOS
 signing remain untested; unit tests use injected synthetic permission/position
 providers. This code addition does not authorize real-user testing.
+
+CI dependency resolution exposed a win32 constraint conflict between geolocator
+14.0.3+ and the existing secure-storage 9.x. Pinning geolocator 14.0.2 avoids
+an unrelated credential-storage migration; latest-head CI remains required.

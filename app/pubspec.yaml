@@ -13,7 +13,8 @@ dependencies:
 
   # API client layer (lib/api/) — JSON over HTTP + refresh-on-401.
   http: ^1.2.2
-  geolocator: 14.1.2
+  # 14.0.3+ conflicts with secure-storage 9.x through win32; no keystore migration.
+  geolocator: 14.0.2
   # Token storage in the platform secure keystore (iOS Keychain /
   # Android EncryptedSharedPreferences). Never shared prefs.
   flutter_secure_storage: ^9.2.2
