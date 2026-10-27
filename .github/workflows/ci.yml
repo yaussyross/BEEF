@@ -113,3 +113,36 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           compression-level: 0
+
+      # Explicit approved staging build, only on the existing review PR branch.
+      # No request is made to the backend; this is offline compilation/inspection.
+      - name: Test compiled closed-test configuration
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: >-
+          flutter test test/closed_test_build_config_test.dart
+          --dart-define=BEEF_EXPECT_CLOSED_TEST_BUILD=true
+          --dart-define=BEEF_API_BASE_URL=https://beef-synthetic-staging.onrender.com
+          --dart-define=BEEF_ENABLE_DEVICE_LOCATION=false
+
+      - name: Build configured closed-test APK
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: >-
+          flutter build apk --debug
+          --dart-define=BEEF_API_BASE_URL=https://beef-synthetic-staging.onrender.com
+          --dart-define=BEEF_ENABLE_DEVICE_LOCATION=false
+
+      - name: Verify compiled APK configuration offline
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: python3 scripts/verify_closed_test_apk.py
+
+      - name: Retain configured closed-test APK for one day
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: beef-closed-synthetic-test-NOT-DEVICE-TESTED-${{ github.sha }}
+          path: |
+            app/build/app/outputs/flutter-apk/app-debug.apk
+            app/build/closed-test-build-verification.json
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
