@@ -40,6 +40,7 @@ jobs:
 
   flutter:
     name: Flutter — scaffold + analyze + build apk
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -146,3 +147,32 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           compression-level: 0
+
+      - name: Android emulator runtime with no backend network
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: bash scripts/android_runtime.sh
+
+      - name: Retain Android runtime evidence
+        if: always() && github.head_ref == 'review/private-controls-2026-10-26'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: beef-android-runtime-evidence-${{ github.sha }}
+          path: app/build/runtime-artifacts/
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Build offline browser preview without deployment
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: |
+          flutter create "$RUNNER_TEMP/beef_web_scaffold" --org com.beef --project-name beef --platforms web --no-pub
+          cp -a "$RUNNER_TEMP/beef_web_scaffold/web" ./web
+          flutter build web --target=lib/preview_main.dart --no-pub --no-web-resources-cdn
+
+      - name: Retain synthetic offline web preview
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: beef-offline-web-preview-NOT-NATIVE-IOS-${{ github.sha }}
+          path: app/build/web/
+          retention-days: 1
+          if-no-files-found: error

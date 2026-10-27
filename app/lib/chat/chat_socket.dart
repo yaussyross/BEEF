@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:web_socket_channel/io.dart';
+import 'chat_connector_stub.dart'
+    if (dart.library.io) 'chat_connector_io.dart' as connector;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// Native-only mobile transport: the token stays in an Authorization header,
@@ -38,12 +39,7 @@ class NativeChatSocket implements ChatSocket {
       query: null,
       fragment: null,
     );
-    final channel = IOWebSocketChannel.connect(
-      uri,
-      headers: {'Authorization': 'Bearer $token'},
-      connectTimeout: const Duration(seconds: 10),
-      pingInterval: const Duration(seconds: 20),
-    );
+    final channel = connector.connectNative(uri, token);
     _channel = channel;
     _subscription = channel.stream.listen(
       (dynamic raw) {
