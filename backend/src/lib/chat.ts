@@ -351,7 +351,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
       EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
                   AND mq.target_id = other_p.id AND mq.source = 'auto'
                   AND (mq.status = 'pending' OR (other_p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending,
-      other_p.photo_verification_status AS other_photo_verification_status,
+      'unverified'::text AS other_photo_verification_status,
       last_msg.id AS last_msg_id,
       last_msg.sender_id AS last_msg_sender_id,
       last_msg.body AS last_msg_body,

@@ -22,7 +22,7 @@ synthetic scenarios and destroys them after testing.
   or live migration is not authorized by the closed-test choice.
 - Apply reviewed migrations to the approved synthetic database; build an APK with
   its actual `BEEF_API_BASE_URL`. Approve a private artifact-delivery route and
-  two devices/testers. Existing public-repo CI does not upload the APK.
+  two devices/testers. Public-repo CI retains an unconfigured setup-only APK for one day; it is not a configured test deployment.
 - Specify the specialized severe-report review/release process, reviewer identity
   auditing, decisions, deadlines and escalation. Current ordinary review returns
   409 for urgent reports/held content; no automatic release is implemented.

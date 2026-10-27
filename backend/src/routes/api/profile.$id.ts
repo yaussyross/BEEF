@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/profile/$id")({
           const targetId = params.id;
 
           const rows = await sql()`SELECT u.id, u.birthdate::text AS birthdate, p.display_name, p.bio, p.intent_tags::text[] AS intent_tags,
-                                          p.photo_verification_status, EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                                          'unverified'::text AS photo_verification_status, EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
                   AND mq.target_id = p.id AND mq.source = 'auto'
                   AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending
                                    FROM users u

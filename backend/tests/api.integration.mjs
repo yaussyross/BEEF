@@ -27,7 +27,7 @@ console.log('PASS fresh migrated PostgreSQL reachable through real Neon HTTP dri
 const { default: handler } = await import('../dist/server/server.js');
 const { chatWebSocketHandlers } = await import('../src/ws/chat.ts');
 const { createRuntime } = await import('../src/server/runtime.ts');
-const runtime = createRuntime({ handler, clientDir: new URL('../dist/client', import.meta.url).pathname, readinessTimeoutMs: 250 });
+const runtime = createRuntime({ handler, clientDir: new URL('../dist/client', import.meta.url).pathname, readinessTimeoutMs: 2000 });
 let discardNextReportReceipt = false;
 const server = Bun.serve({
   hostname: '127.0.0.1', port: 0, websocket: chatWebSocketHandlers,
@@ -239,6 +239,17 @@ try {
   await api('/api/profile', { token: b.token, method: 'PUT', body: { display_name: 'Fixture B' } });
   assert.equal((await api(`/api/profile/${b.id}`, { token: a.token })).user.display_name, 'Fixture B');
   console.log('PASS flagged profile names are contained across grid/profile/chat while clean rewrites remain visible');
+  // A legacy enum value is not evidence of an implemented verification process.
+  await sql`UPDATE profiles SET photo_verification_status = 'verified' WHERE user_id = ${b.id}`;
+  for (const path of ['/api/me', '/api/profile']) {
+    assert.equal((await api(path, { token: b.token })).user.photo_verification_status, 'unverified');
+  }
+  assert.equal((await api(`/api/profile/${b.id}`, { token: a.token })).user.photo_verification_status, 'unverified');
+  assert.equal((await api('/api/grid', { token: a.token })).items.find(i => i.user_id === b.id).photo_verification_status, 'unverified');
+  assert.equal((await api('/api/threads', { token: a.token })).threads.find(t => t.other_user_id === b.id).other_photo_verification_status, 'unverified');
+  assert.equal((await api('/api/threads', { token: a.token, method: 'POST', status: 201, body: { other_user_id: b.id } })).thread.other_photo_verification_status, 'unverified');
+  await sql`UPDATE profiles SET photo_verification_status = 'unverified' WHERE user_id = ${b.id}`;
+  console.log('PASS stored verification labels cannot assert an unimplemented verification process');
   const sa = await connect(a.token);
   const sb = await connect(b.token);
   sa.ws.send(JSON.stringify({ type: 'send', thread_id: ab, client_message_id: 'ws-one', body: 'Hello from A' }));

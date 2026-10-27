@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/threads")({
 
           // Pull the other participant's public summary for the response (the
           // same fields the inbox exposes; no birthdate, no location).
-          const other = await sql()`SELECT p.display_name, p.photo_verification_status, EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+          const other = await sql()`SELECT p.display_name, 'unverified'::text AS photo_verification_status, EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
                   AND mq.target_id = p.id AND mq.source = 'auto'
                   AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending
                                     FROM profiles p

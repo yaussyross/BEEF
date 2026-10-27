@@ -1,5 +1,7 @@
 # Product acceptance audit — 27 October 2026
 
+Decision defaults and full remaining scope: [acceptance/decision map](ACCEPTANCE-DECISIONS-2026-10-27.md).
+
 This is the current acceptance map. Earlier dated handoff/live/CI statements are
 historical. PR #5 remains untouched; PR #6 combines both tracks without merging
 main. Starting verified PR head was 8a0036f (53 Flutter tests and debug APK in CI
@@ -111,3 +113,10 @@ providers. This code addition does not authorize real-user testing.
 CI dependency resolution exposed a win32 constraint conflict between geolocator
 14.0.3+ and the existing secure-storage 9.x. Pinning geolocator 14.0.2 avoids
 an unrelated credential-storage migration; latest-head CI remains required.
+
+Verified checkpoint 33165ed: run 40570420109 passed backend checks, clean Flutter
+analysis, 65 tests and debug APK; artifact 12764169070 expires October 28 at
+19:39 UTC. The subsequent verification-honesty change needs its own checks.
+Library persistence did not complete: fetching the connector-returned artifact
+URL into the workspace was denied by the network proxy (403 Forbidden).
+No unchanged retry or alternate transfer was attempted.

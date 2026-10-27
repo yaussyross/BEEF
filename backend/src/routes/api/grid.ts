@@ -116,7 +116,7 @@ export const Route = createFileRoute("/api/grid")({
                   AND mq.target_id = p.id AND mq.source = 'auto'
                   AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending,
                 p.intent_tags::text[] AS intent_tags,
-                p.photo_verification_status,
+                'unverified'::text AS photo_verification_status,
                 p.coarse_location,
                 p.hide_distance,
                 loc.updated_at,

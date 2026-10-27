@@ -15,7 +15,7 @@ import '../theme/beef_colors.dart';
 /// Another guy's profile (`GET /api/profile/:id`).
 ///
 /// Privacy invariants (enforced server-side, respected here): renders display
-/// name, bio, intent tags, interests, verification badge, and `age_bucket`
+/// name, bio, intent tags, interests, explicit unverified status, and `age_bucket`
 /// only. NEVER a birthdate and NEVER any location — the API does not even
 /// return them, and this screen has no fields for them.
 class ProfileScreen extends StatefulWidget {
@@ -225,19 +225,6 @@ class _ProfileBody extends StatelessWidget {
                   ),
                 ),
               ),
-              if (profile.photoVerificationStatus == 'verified')
-                Container(
-                  decoration: const BoxDecoration(
-                    color: BeefColors.lime,
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: const Icon(
-                    Icons.check,
-                    size: 20,
-                    color: BeefColors.char,
-                  ),
-                ),
             ],
           ),
         ),
@@ -256,13 +243,11 @@ class _ProfileBody extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-            if (profile.photoVerificationStatus == 'verified') ...<Widget>[
-              const SizedBox(width: 8),
-              const _CertifiedCutBadge(),
-            ],
           ],
         ),
         const SizedBox(height: 12),
+        const Center(child: Text('Photo unverified')),
+        const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: onRate,
           icon: const Icon(Icons.star_outline),
@@ -337,39 +322,6 @@ class _ProfileBody extends StatelessWidget {
   static String _capitalise(String value) {
     if (value.isEmpty) return value;
     return value[0].toUpperCase() + value.substring(1);
-  }
-}
-
-/// "Certified Cut" — the photo-verification badge from the feature pack.
-class _CertifiedCutBadge extends StatelessWidget {
-  const _CertifiedCutBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: BeefColors.lime.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: BeefColors.lime),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(Icons.verified, size: 14, color: BeefColors.lime),
-          const SizedBox(width: 4),
-          Text(
-            'Certified Cut',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: BeefColors.lime,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
