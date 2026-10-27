@@ -91,6 +91,9 @@ jobs:
       - name: Configure generated foreground-only location permissions
         run: python3 scripts/configure_platforms.py
 
+      - name: Generate BEEF launcher icons from approved master
+        run: dart run flutter_launcher_icons
+
       - name: Analyze
         run: flutter analyze
 

@@ -20,7 +20,7 @@ to approve ordinary code, layout, validation, retry or test choices.
 | Verification honesty | No unsupported identity/photo/age assurance | Follow-up removes reliance on a legacy `verified` enum and displays unverified. No photo verifier exists. |
 | Runtime/waitlist | Explicit env, liveness/readiness, shutdown, durable deduplicated waitlist | Implemented; isolated runtime/DB/API/browser tests. |
 | Error UX/accessibility | Loading, retry, retained edits, disabled-account behavior, readable errors | Existing flow tests; further device/screen-reader QA remains engineering work, not a product decision. |
-| Brand/build | Bundled fonts, reproducible APK, no-config inert screen | Implemented; 33165ed CI passed 65 tests and APK. Subsequent changes require their own CI. Generated app icon/store screenshots still need final device/artifact inspection. |
+| Brand/build | Bundled fonts, reproducible APK, no-config inert screen | Implemented; 33165ed CI passed 65 tests and APK. Subsequent changes require their own CI. Approved master icon and BEEF display name are wired into generated platform resources using flutter_launcher_icons 0.14.4; final device appearance and store screenshots still need inspection. |
 | Test artifacts | Synthetic fixtures and two-device acceptance checklist; clear setup-only label | Prepared. Current APK expires Oct 28 19:39 UTC. Library persistence attempted but local transfer denied HTTP403; not delivered durably. |
 
 ## Consequential choices and recommended privacy-preserving defaults

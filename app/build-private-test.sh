@@ -25,6 +25,7 @@ if [[ ! -d android || ! -d ios ]]; then
 fi
 flutter pub get
 python3 scripts/configure_platforms.py
+dart run flutter_launcher_icons
 export BYPASS_PERMISSION_LOCATION_ALWAYS=1
 flutter analyze
 flutter test
