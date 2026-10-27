@@ -1,3 +1,5 @@
+> Security follow-up: closed-test registration now requires an independently configured `BEEF_CLOSED_TEST_SETUP_KEY` (32–256 characters) in `X-BEEF-Test-Setup-Key`, in addition to exact allowlisting. The Blueprint intentionally does not set this key, so hosted registration is disabled until an approved secure setup path exists. Never embed the key in mobile builds. Closed-test accounts are tagged `synthetic_demo`. Login to already-established accounts is unchanged.
+
 # Closed synthetic Render Blueprint
 
 Prepared, not applied. Use `deploy/render.closed-test.yaml` from the exact reviewed

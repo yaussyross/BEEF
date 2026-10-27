@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 /** Exact account allowlist, independent of JWT claims and proxy headers. */
 export class AccessGateError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -18,4 +19,17 @@ export function requireAllowedTestEmail(email: unknown): void {
   if (policy.closed && (typeof email !== 'string' || !policy.emails.has(email.trim().toLowerCase()))) {
     throw new AccessGateError(403, 'closed_test_only', 'This service is restricted to approved test accounts.');
   }
+}
+
+/** Publicly known fixture addresses are not account-creation credentials. */
+export function registrationSource(request: Request, env: Record<string, string | undefined> = process.env) {
+  if (!closedTestPolicy(env).closed) return 'direct';
+  const expected = env.BEEF_CLOSED_TEST_SETUP_KEY ?? '';
+  const supplied = request.headers.get('X-BEEF-Test-Setup-Key') ?? '';
+  if (expected.length < 32 || expected.length > 256 || supplied.length > 256 ||
+      Buffer.byteLength(expected) !== Buffer.byteLength(supplied) ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(supplied))) {
+    throw new AccessGateError(403, 'test_setup_required', 'Test account setup is restricted.');
+  }
+  return 'synthetic_demo';
 }

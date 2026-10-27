@@ -71,13 +71,14 @@ const server = Bun.serve({
   },
 });
 const sockets = [];
-async function api(path, { token, method = 'GET', body, status = 200, admin = false } = {}) {
+async function api(path, { token, method = 'GET', body, status = 200, admin = false, setup = false } = {}) {
   if (path == '/api/report' && body && !Object.hasOwn(body, 'client_report_id')) body = { ...body, client_report_id: crypto.randomUUID() };
   const response = await fetch(new URL(path, server.url), {
     method, headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(body ? { 'content-type': 'application/json' } : {}),
       ...(admin ? { 'X-Moderation-Key': process.env.MODERATION_ADMIN_KEY } : {}),
+      ...(setup ? { 'X-BEEF-Test-Setup-Key': process.env.BEEF_CLOSED_TEST_SETUP_KEY } : {}),
     }, body: body ? JSON.stringify(body) : undefined,
   });
   const result = await response.json();
@@ -583,7 +584,13 @@ try {
     await api('/api/ws', { token: misleading, status: 403 });
     await api('/api/login', { method: 'POST', body: { email: 'FICTIONAL-ADULT-D@EXAMPLE.TEST', password } });
     await api('/api/refresh', { method: 'POST', body: { refreshToken: d.refresh } });
-    await register('fictional-new-tester');
+    const newFixture = { email: 'fictional-new-tester@example.test', password, birthdate: '1990-06-15' };
+    await api('/api/register', { method: 'POST', body: newFixture, status: 403 });
+    process.env.BEEF_CLOSED_TEST_SETUP_KEY = 'synthetic-setup-key-000000000000000000';
+    await api('/api/register', { method: 'POST', body: newFixture, status: 403 });
+    await api('/api/register', { method: 'POST', body: newFixture, setup: true, status: 201 });
+    assert.equal((await sql`SELECT signup_source FROM users WHERE email = 'fictional-new-tester@example.test'`)[0].signup_source, 'synthetic_demo');
+    delete process.env.BEEF_CLOSED_TEST_SETUP_KEY;
     const allowedSocket = await connect(d.token); allowedSocket.ws.close();
     await api('/api/moderation/queue', { admin: true, status: 401 });
     await api('/api/moderation/queue', { token: d.token, admin: true });
