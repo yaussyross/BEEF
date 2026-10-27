@@ -13,13 +13,18 @@ class DeviceLocationScreen extends StatefulWidget {
 }
 class _DeviceLocationScreenState extends State<DeviceLocationScreen> with WidgetsBindingObserver {
   int _generation = 0;
+  DeviceLocation? _location;
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); }
   @override
-  void dispose() { _generation++; WidgetsBinding.instance.removeObserver(this); super.dispose(); }
+  void dispose() { _generation++; _location?.cancel(); WidgetsBinding.instance.removeObserver(this); super.dispose(); }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _generation++;
+    // Inactive includes the OS permission prompt; paused/hidden/detached
+    // indicate leaving the foreground and cancel the pending acquisition.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
+      _generation++; _location?.cancel();
+    }
   }
   bool _busy = false, _disabled = false;
   String? _message;
@@ -28,8 +33,10 @@ class _DeviceLocationScreenState extends State<DeviceLocationScreen> with Widget
     final generation = ++_generation;
     setState(() { _busy = true; _message = null; });
     final client = ApiClient(baseUrl: ApiConfig.baseUrl, tokenStore: AuthScope.read(context).tokenStore);
+    final location = DeviceLocation();
+    _location = location;
     try {
-      final point = await DeviceLocation().locate();
+      final point = await location.locate();
       if (!mounted || generation != _generation) return;
       await LocationApi(client).update(point.latitude, point.longitude);
       if (mounted) setState(() => _message = 'Location updated. Your privacy preferences are unchanged.');
@@ -38,7 +45,7 @@ class _DeviceLocationScreenState extends State<DeviceLocationScreen> with Widget
         _message = e is LocationFailure ? e.message : e is ApiException ? e.message : 'Could not update location. Try again.';
         _disabled = e is ApiException && e.code == 'account_disabled';
       });
-    } finally { client.close(); if (mounted) setState(() => _busy = false); }
+    } finally { location.cancel(); _location = null; client.close(); if (mounted) setState(() => _busy = false); }
   }
   @override
   Widget build(BuildContext context) => Scaffold(
