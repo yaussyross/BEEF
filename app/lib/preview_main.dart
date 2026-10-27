@@ -7,7 +7,7 @@ import 'models/chat_message.dart';
 import 'screens/conversation_screen.dart';
 import 'screens/onboarding/age_gate_screen.dart';
 import 'theme/app_theme.dart';
-import '../test/chat_test_helpers.dart';
+import 'preview/fixtures.dart';
 
 void main() => runApp(const OfflinePreview());
 class OfflinePreview extends StatefulWidget {
