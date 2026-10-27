@@ -41,10 +41,12 @@ class _DeviceLocationScreenState extends State<DeviceLocationScreen> with Widget
       await LocationApi(client).update(point.latitude, point.longitude);
       if (mounted) setState(() => _message = 'Location updated. Your privacy preferences are unchanged.');
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _message = e is LocationFailure ? e.message : e is ApiException ? e.message : 'Could not update location. Try again.';
         _disabled = e is ApiException && e.code == 'account_disabled';
-      });
+        });
+      }
     } finally { location.cancel(); _location = null; client.close(); if (mounted) setState(() => _busy = false); }
   }
   @override

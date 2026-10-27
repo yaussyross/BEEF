@@ -38,10 +38,12 @@ class _TestLocationScreenState extends State<TestLocationScreen> {
       await _api!.update(point.$1, point.$2);
       if (mounted) setState(() => _confirmation = 'Synthetic test area saved. Return to the grid to refresh.');
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = e is ApiException ? e.message : 'Could not confirm the test area. Try again.';
         _disabled = e is ApiException && e.code == 'account_disabled';
-      });
+        });
+      }
     } finally { if (mounted) setState(() => _busy = false); }
   }
   @override
