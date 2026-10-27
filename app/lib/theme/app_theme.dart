@@ -5,7 +5,7 @@ import 'beef_colors.dart';
 /// BEEF dark theme — bold type, high-contrast campy warmth. Original look, not
 /// Grindr's trade dress. Typography leans on heavy weights + wide tracking for
 /// the "cut above the rest" display voice (bundling the Unbounded / Space
-/// Grotesk TTFs from design/store is a later polish step).
+/// Grotesk TTFs are bundled from the existing design/store assets).
 abstract final class BeefTheme {
   static ThemeData get dark {
     final ColorScheme scheme = ColorScheme.fromSeed(
@@ -27,6 +27,7 @@ abstract final class BeefTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'SpaceGrotesk',
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: BeefColors.char,
@@ -44,6 +45,7 @@ abstract final class BeefTheme {
       ),
       textTheme: const TextTheme(
         displayLarge: TextStyle(
+          fontFamily: 'Unbounded',
           color: BeefColors.cream,
           fontSize: 56,
           fontWeight: FontWeight.w900,
@@ -51,6 +53,7 @@ abstract final class BeefTheme {
           height: 1.0,
         ),
         displayMedium: TextStyle(
+          fontFamily: 'Unbounded',
           color: BeefColors.cream,
           fontSize: 40,
           fontWeight: FontWeight.w900,

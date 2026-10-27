@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProfileText } from "~/lib/moderation";
 import { sql } from "~/db";
 import { requireAuth } from "~/lib/auth";
 import { errorResponse, json } from "~/lib/http";
@@ -14,6 +15,7 @@ interface GridRow {
   user_id: string;
   display_name: string | null;
   bio: string | null;
+  text_review_pending: boolean;
   intent_tags: string[];
   photo_verification_status: string;
   coarse_location: string;
@@ -69,6 +71,11 @@ export const Route = createFileRoute("/api/grid")({
             );
           }
           const intent: string | null = intentParam;
+          const interests = [...new Set((url.searchParams.get("interests") ?? "").split(",").filter(Boolean))];
+          if (interests.length > 16 || interests.some(s => !/^[a-z0-9-]{1,80}$/.test(s))) {
+            return json({ error: "invalid_interests", message: "Choose valid interest slugs." }, { status: 400 });
+          }
+
 
           // The viewer's own effective origin: travel point while travelling,
           // otherwise the coarse centroid. precise_* is never read here.
@@ -105,8 +112,11 @@ export const Route = createFileRoute("/api/grid")({
                 u.id AS user_id,
                 p.display_name,
                 p.bio,
+                EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                  AND mq.target_id = p.id AND mq.source = 'auto'
+                  AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending,
                 p.intent_tags::text[] AS intent_tags,
-                p.photo_verification_status,
+                'unverified'::text AS photo_verification_status,
                 p.coarse_location,
                 p.hide_distance,
                 loc.updated_at,
@@ -133,6 +143,10 @@ export const Route = createFileRoute("/api/grid")({
               WHERE u.id <> ${userId}
                 AND u.status = 'active'
                 AND p.moderation_status IN ('pending', 'approved')
+                AND (${interests.length === 0} OR EXISTS (
+                  SELECT 1 FROM profile_interests pi JOIN interests i ON i.id = pi.interest_id
+                  WHERE pi.profile_id = p.id AND i.slug = ANY(${interests}::text[])
+                ))
                 AND NOT EXISTS (
                   SELECT 1 FROM blocks b WHERE b.blocker_id = ${userId} AND b.blocked_id = u.id
                 )
@@ -153,6 +167,7 @@ export const Route = createFileRoute("/api/grid")({
               user_id,
               display_name,
               bio,
+              text_review_pending,
               intent_tags,
               photo_verification_status,
               coarse_location,
@@ -176,8 +191,8 @@ export const Route = createFileRoute("/api/grid")({
 
           const items = results.map((row) => ({
             user_id: row.user_id,
-            display_name: row.display_name,
-            bio: row.bio,
+            display_name: publicProfileText(row.display_name, row.text_review_pending),
+            bio: publicProfileText(row.bio, row.text_review_pending),
             intent_tags: Array.isArray(row.intent_tags) ? row.intent_tags : [],
             photo_verification_status: row.photo_verification_status,
             distance: distanceLabel(

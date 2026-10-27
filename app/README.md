@@ -123,3 +123,72 @@ run instructions. Migrations are idempotent and also tracked by a
 `bun ../db/migrate.ts` from the app dir).
 
 Requires `postgis` + `citext` extensions (both supported on Neon).
+
+## Chat slice
+
+The Chats tab now lists real `/api/threads` results and unread counts. A profile's
+**Say hello** action opens its 1:1 thread. Conversation screens support history,
+keyset pagination, live messages, pending/failed delivery, and explicit retry.
+No demo conversations are seeded.
+
+- Native Android/iOS sockets use the bearer **header** at `/api/ws`; no token is
+  put in the URL. The existing API client rotates expired tokens via REST before
+  reconnecting. This transport intentionally targets the native mobile app.
+- A missing acknowledgement falls back to HTTP with the **same** random
+  `client_message_id`. Explicit server rejection is shown without an automatic
+  resend. Failed messages remain retryable in memory until sign-out.
+- While foregrounded, a 15-second refresh catches offline delivery and messages
+  sent through the backend's REST path (which does not broadcast over WS).
+  Backgrounding disconnects the socket; resume reloads history and reconnects.
+- Read markers are sent only for the open, loaded, foreground conversation, and
+  require a live socket because the current backend has no REST read endpoint.
+- Only `approved` message bodies are rendered, including inbox previews. Other
+  moderation statuses show a safety-review placeholder. Blocks clear the affected
+  conversation and disable sending. Sign-out clears chat memory and navigation.
+- No location, birthdate, device contacts, or third-party analytics were added.
+
+Run `flutter analyze`, `flutter test`, and `flutter build apk --debug`. Tests use
+in-memory fixtures and mocked HTTP/WebSocket transport, with no accounts or DB.
+CI runs the test suite before the APK build. A two-device check against an
+owner-approved test backend is still required before calling this beta-ready.
+
+## Rating and safety controls (local source; Flutter verification pending)
+
+- Profile and conversation actions open **Rate this Guy**. The screen fetches
+  server eligibility, explains the mutual five-minute rule, accepts 1–5 stars,
+  confirms successful saves and supports replacing the caller's earlier vote.
+  Loading, explicit retry, duplicate-save protection and revoked eligibility
+  states are implemented. There is no client timer or online tracking.
+- **Safety options** on profiles and conversations provide confirmed blocking
+  and reports using the existing backend categories. Reports retain entered
+  details on failure and only claim receipt after a confirmed response. A
+  confirmed block clears the local conversation/inbox even without a WS event.
+- **Privacy settings** from the grid load saved city/region/exact preferences
+  and hide-distance, explain exact mode's existing behavior, and save explicitly.
+  No device location collection was added; coordinates/birthdate are not rendered.
+- Opening rating/safety from a conversation pauses its read markers until the
+  user returns. Suspended-account chat responses request session teardown.
+- Public aggregate APIs/displays and blocked-user/unblock management are not
+  included in this step. No new moderation or rating visibility policy is set.
+
+Sources: rating scale and re-rating are owner-plan requirements in
+`docs/BUSINESS.md` (MVP milestone) and `docs/ROADMAP.md` section 1.2. The mutual
+five-minute message-span rule was approved by the owner on October 26. Report
+categories mirror `backend/src/routes/api/report.ts`; privacy options mirror
+`backend/src/routes/api/profile.ts` and `backend/src/lib/privacy.ts`.
+
+`test/ratings_test.dart` and `test/safety_privacy_test.dart` add 21 test cases
+(including the three parameterized rating-revocation cases). **These tests,
+Flutter analyze and app builds have not run here:** no Flutter/Dart SDK is
+available, and the prior denied official download was not retried or bypassed.
+The historical SDK notes earlier in this file are not a current installation.
+Run the full existing and new Flutter suite, then Android build and two-device
+QA before treating these controls as verified.
+
+Report retries now send a stable `client_report_id` UUID. Details lock after the
+first attempt; retries retain both payload and key and wait for a valid receipt.
+The key lives in the current report screen, not persistent storage. Closing it
+starts a new submission; durable cross-restart recovery is not implemented.
+Two additional tests cover UUID shape/uniqueness and malformed-response retries;
+the existing offline retry test also checks identical keys and locked details.
+These Flutter tests remain NOT RUN in this SDK-less environment.

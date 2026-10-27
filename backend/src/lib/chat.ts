@@ -1,5 +1,6 @@
 import { sql } from "../db";
-import { enqueueModeration, screenText } from "./moderation";
+import { requireActiveAccount } from "./auth";
+import { enqueueModeration, screenText, publicProfileText } from "./moderation";
 
 /**
  * BEEF — chat domain logic (server-only). Shared by the REST hydration routes
@@ -100,10 +101,17 @@ export async function isActiveUser(id: string): Promise<boolean> {
  * was actually newly created.
  */
 export async function getOrCreateThread(userId: string, otherId: string): Promise<ThreadRow> {
+  await requireActiveAccount(userId);
   if (userId === otherId) {
     throw new ChatError(400, "self_thread", "You can't start a thread with yourself.");
   }
   const [low, high] = sortedPair(userId, otherId);
+  if (!(await isActiveUser(otherId))) {
+    throw new ChatError(404, "user_not_found", "That user doesn't exist.");
+  }
+  if (await isBlockedEither(userId, otherId)) {
+    throw new ChatError(403, "blocked", "You can't access this conversation.");
+  }
 
   // Get-or-create in one statement (CTE inserts participants only on create).
   await sql()`WITH ins AS (
@@ -139,6 +147,7 @@ export async function getOrCreateThread(userId: string, otherId: string): Promis
  * through, so block enforcement can't be forgotten by a caller.
  */
 export async function getThreadForParticipant(userId: string, threadId: string): Promise<ThreadRow> {
+  await requireActiveAccount(userId);
   const rows = await sql()`SELECT ct.id, ct.participant_low, ct.participant_high,
                                 ct.created_at::text AS created_at,
                                 ct.last_message_at::text AS last_message_at
@@ -148,6 +157,9 @@ export async function getThreadForParticipant(userId: string, threadId: string):
                          LIMIT 1`;
   const thread = rows[0] as ThreadRow | undefined;
   if (!thread) {
+    throw new ChatError(404, "thread_not_found", "Thread not found.");
+  }
+  if (!(await isActiveUser(otherParticipant(thread, userId)))) {
     throw new ChatError(404, "thread_not_found", "Thread not found.");
   }
   if (await isBlockedEither(userId, otherParticipant(thread, userId))) {
@@ -237,7 +249,7 @@ export async function sendMessage(
     if (screen.verdict === "flag") {
       await enqueueModeration("message", first.id, "auto", screen.reasons.join(","));
     }
-    return { message: first, recipientId, created: true };
+    return { message: publicMessage(first), recipientId, created: true };
   }
 
   // Duplicate client_message_id → return the already-stored row (idempotent).
@@ -250,7 +262,12 @@ export async function sendMessage(
   if (!message) {
     throw new ChatError(500, "send_failed", "Could not persist the message.");
   }
-  return { message, recipientId, created: false };
+  // The dedupe key is sender-wide, not thread-wide. Never route a stored
+  // message from another conversation to the newly requested recipient.
+  if (message.thread_id !== thread.id) {
+    throw new ChatError(409, "client_message_id_conflict", "Use a new client_message_id for a different conversation.");
+  }
+  return { message: publicMessage(message), recipientId, created: false };
 }
 
 export interface HistoryResult {
@@ -306,11 +323,12 @@ export async function getThreadHistory(
   const nextCursor =
     hasMore && page.length > 0 ? `${page[page.length - 1].created_at}|${page[page.length - 1].id}` : null;
 
-  return { messages: page, next_cursor: nextCursor };
+  return { messages: page.map(publicMessage), next_cursor: nextCursor };
 }
 
 /** Mark a thread read up to now for a participant (updates last_read_at). */
 export async function markThreadRead(userId: string, threadId: string): Promise<void> {
+  await getThreadForParticipant(userId, threadId);
   await sql()`UPDATE thread_participants
              SET last_read_at = now()
              WHERE thread_id = ${threadId} AND user_id = ${userId}`;
@@ -323,13 +341,17 @@ export async function markThreadRead(userId: string, threadId: string): Promise<
  * unread count (messages from the other user newer than this user's last_read_at).
  */
 export async function listThreads(userId: string): Promise<ThreadSummary[]> {
+  await requireActiveAccount(userId);
   const rows = await sql()`SELECT
       ct.id,
       ct.last_message_at::text AS last_message_at,
       tp.last_read_at::text AS last_read_at,
       other.id AS other_user_id,
       other_p.display_name AS other_display_name,
-      other_p.photo_verification_status AS other_photo_verification_status,
+      EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                  AND mq.target_id = other_p.id AND mq.source = 'auto'
+                  AND (mq.status = 'pending' OR (other_p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending,
+      'unverified'::text AS other_photo_verification_status,
       last_msg.id AS last_msg_id,
       last_msg.sender_id AS last_msg_sender_id,
       last_msg.body AS last_msg_body,
@@ -355,6 +377,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
       LIMIT 1
     ) last_msg ON true
     WHERE tp.user_id = ${userId}
+      AND other.status = 'active'
       AND NOT EXISTS (
         SELECT 1 FROM blocks b
         WHERE (b.blocker_id = ${userId} AND b.blocked_id = other.id)
@@ -368,6 +391,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
     last_read_at: string | null;
     other_user_id: string;
     other_display_name: string | null;
+    text_review_pending: boolean;
     other_photo_verification_status: string;
     last_msg_id: string | null;
     last_msg_sender_id: string | null;
@@ -380,7 +404,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
   return summaries.map((r) => ({
     id: r.id,
     other_user_id: r.other_user_id,
-    other_display_name: r.other_display_name,
+    other_display_name: publicProfileText(r.other_display_name, r.text_review_pending),
     other_photo_verification_status: r.other_photo_verification_status,
     last_message:
       r.last_msg_id === null
@@ -388,7 +412,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
         : {
             id: r.last_msg_id,
             sender_id: r.last_msg_sender_id ?? "",
-            body: r.last_msg_body ?? "",
+            body: r.last_msg_moderation_status === "approved" ? r.last_msg_body ?? "" : "",
             moderation_status: r.last_msg_moderation_status ?? "approved",
             created_at: r.last_msg_created_at ?? "",
           },
@@ -396,4 +420,9 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
     last_read_at: r.last_read_at,
     unread_count: Number(r.unread_count) || 0,
   }));
+}
+
+/** Raw hidden content stays server-side, even if a client ignores moderation UI. */
+function publicMessage(message: StoredMessage): StoredMessage {
+  return message.moderation_status === 'approved' ? message : { ...message, body: '' };
 }

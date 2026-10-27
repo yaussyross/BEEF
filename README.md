@@ -3,6 +3,21 @@
 **A cut above the rest.** BEEF is a free, ads-supported gay male social app for
 friends, dates, and hookups — campy, stylish, and privacy-first by design.
 
+## Development revival — 2026-10-21
+
+BEEF remains its own existing project in the RAUS portfolio; KIN is separate.
+The current local slice repairs waitlist navigation and failure recovery, adds
+accessible loading/error/success feedback, and preserves existing persistence
+and authentication behavior. No deployment or launch was performed.
+
+Local PostgreSQL migration and constraint tests now pass; see
+[reproducible isolated tests](db/tests/README.md). Flutter installation remains
+blocked by an HTTP 403 from its official download endpoint.
+
+See [revival evidence and limitations](docs/REVIVAL-2026-10-21.md) and the
+[mobile screenshot](artifacts/waitlist/mobile-retry.png).
+The historical snapshot below is not a fresh live-service verification.
+
 This is a monorepo holding both codebases plus the database schema:
 
 ```
@@ -56,11 +71,9 @@ Layout highlights:
 
 ### Type-check note
 
-`bunx tsc --noEmit` (or `node_modules/.bin/tsc --noEmit`) reports **exactly five
-pre-existing errors, all in `serve.ts`**, because that file uses Bun-only globals
-(`Bun.*`, `import.meta.dir`) under the site's Vite/`@types/node` tsconfig. These
-five are intentional and tolerated by CI. `src/` (including `src/ws/chat.ts`)
-type-checks clean. Do not add new type errors.
+`node_modules/.bin/tsc --noEmit` must pass with zero errors after the build.
+Official `@types/bun` definitions are pinned to 1.3.14, matching CI.
+CI no longer suppresses errors in `serve.ts`.
 
 ### Scripts
 
@@ -129,8 +142,7 @@ does not touch the live database and needs no secrets.
 
 Two jobs, deterministic, **no secrets**:
 
-1. **backend** — `bun install` → `tsc --noEmit` (fails on any error other than
-   the 5 known `serve.ts` Bun-global errors) → `bun run build`.
+1. **backend** — `bun install` → `bun run build` → `tsc --noEmit` (zero errors).
 2. **flutter** — installs Flutter (pinned stable `3.47.2`) → generates platform
    folders → `flutter pub get` → `flutter analyze` (must be clean) →
    `flutter build apk --debug`. iOS is gated by `analyze` only; an iOS build

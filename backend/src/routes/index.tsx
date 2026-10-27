@@ -1,32 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { appendFile, mkdir } from "node:fs/promises";
-import { useState } from "react";
-
-/**
- * Waitlist capture. Submissions are appended (one JSON object per line) to
- * .run/waitlist.jsonl in the site working directory. The .run/ folder is
- * gitignored and lives on this machine, so entries survive a `bun run publish`
- * (rebuild + server restart) of THIS host. Honest limitation: this is
- * single-host, file-based persistence — it is not a managed database, so it
- * would not survive the sandbox being rebuilt elsewhere. Swap in the DB helper
- * (src/db.ts) once a DATABASE_URL is connected.
- */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-const joinWaitlist = createServerFn({ method: "POST" })
-  .validator((data: { email?: string }) => data)
-  .handler(async ({ data }) => {
-    const email = (data.email ?? "").trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      return { ok: false, error: "That email looks a little undercooked. Try again?" };
-    }
-    const line = JSON.stringify({ email, ts: new Date().toISOString() }) + "\n";
-    await mkdir(".run", { recursive: true });
-    await appendFile(".run/waitlist.jsonl", line, "utf8");
-    return { ok: true, email };
-  }
-);
+import { useRef, useState } from "react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -323,19 +296,32 @@ function Flavor() {
 
 function WaitlistForm() {
   const [email, setEmail] = useState("");
+  const submitting = useRef(false);
   const [status, setStatus] = useState<{ kind: "idle" | "busy" | "ok" | "err"; msg?: string }>({
     kind: "idle",
   });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus({ kind: "busy" });
-    const res = await joinWaitlist({ data: { email } });
-    if (res.ok) {
-      setStatus({ kind: "ok", msg: "You're on the grill. Talk soon, handsome." });
-      setEmail("");
-    } else {
-      setStatus({ kind: "err", msg: res.error });
+    if (submitting.current) return;
+    submitting.current = true;
+    setStatus({ kind: "busy", msg: "Saving your place…" });
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const res = await response.json();
+      if (response.ok && res.ok === true) {
+        setStatus({ kind: "ok", msg: "You're on the waitlist. We'll email you when there's news." });
+        setEmail("");
+      } else {
+        setStatus({ kind: "err", msg: typeof res.error === "string" ? res.error : "We couldn't confirm your place. Your email is still here; please try again." });
+      }
+    } catch {
+      setStatus({ kind: "err", msg: "We couldn't confirm your place. Your email is still here; please try again." });
+    } finally {
+      submitting.current = false;
     }
   }
 
@@ -358,8 +344,11 @@ function WaitlistForm() {
           </p>
 
           <form
+            id="join"
+            aria-label="Join the BEEF waitlist"
+            aria-busy={status.kind === "busy"}
             onSubmit={submit}
-            className="mx-auto mt-10 flex max-w-xl flex-col gap-3 sm:flex-row"
+            className="mx-auto mt-10 flex max-w-xl scroll-mt-28 flex-col gap-3 sm:flex-row"
           >
             <label htmlFor="waitlist-email" className="sr-only">
               Email address
@@ -367,11 +356,19 @@ function WaitlistForm() {
             <input
               id="waitlist-email"
               type="email"
+              name="email"
+              autoComplete="email"
+              maxLength={254}
+              aria-describedby="waitlist-note waitlist-status"
+              readOnly={status.kind === "busy"}
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (status.kind !== "busy") setStatus({ kind: "idle" });
+              }}
               placeholder="you@somethingtasty.com"
-              className="w-full flex-1 rounded-full border-2 border-char/15 bg-white px-6 py-4 text-char outline-none transition placeholder:text-char/40 focus:border-steak"
+              className="min-w-0 w-full flex-1 rounded-full border-2 border-char/15 bg-white px-6 py-4 text-char outline-none transition placeholder:text-char/40 focus:border-steak"
             />
             <button
               type="submit"
@@ -382,12 +379,19 @@ function WaitlistForm() {
             </button>
           </form>
 
-          {status.kind === "ok" && (
-            <p className="mt-5 font-medium text-green-700">{status.msg}</p>
-          )}
-          {status.kind === "err" && (
-            <p className="mt-5 font-medium text-steak">{status.msg}</p>
-          )}
+          <p id="waitlist-note" className="mx-auto mt-4 max-w-xl text-sm text-char/80">
+            BEEF is in development for adults 18+. Joining the waitlist does not
+            create an app account.
+          </p>
+          <p
+            id="waitlist-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className={`mt-5 min-h-12 font-medium ${status.kind === "err" ? "text-beefer" : "text-char"}`}
+          >
+            {status.msg ?? ""}
+          </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-char/60">
             <span>Free forever</span>

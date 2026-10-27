@@ -1,4 +1,15 @@
+> Current acceptance map: [27 October audit](PRODUCT-ACCEPTANCE-2026-10-27.md). Earlier dated verification statements below are historical. PR #6 reached green 8a0036f before this follow-up; later work requires its own checks. Nothing is deployed by this audit.
+
 # BEEF — Status (built vs. not yet)
+
+> See [26 October 2026 audit](LAUNCH-READINESS-2026-10-26.md) for the combined
+> development branch, current test results, privacy fix and exact remaining gates.
+> Historical live and CI claims below are not current verification.
+
+> For the 2026-10-21 development check and waitlist repair, see
+> [revival evidence](REVIVAL-2026-10-21.md). The revival branch now type-checks
+> with zero errors and strict CI. Local PostgreSQL migration/constraint tests
+> pass; Flutter downloads are blocked by HTTP 403. Live/CI claims below are historical.
 
 Honest state of the project at handoff. "Verified" means pointed at in the repo
 and confirmed working (this handoff re-verified the backend live);
@@ -35,13 +46,22 @@ repo; "compiles only" means CI proves it builds but no one has run it.
 | Flutter slice 1 — app foundation, onboarding, mandatory 18+ gate, register/login/auth flow (~1,700 lines) | `app/lib/{main.dart, app.dart, auth/, api/, models/, screens/onboarding/, widgets/, theme/, config/}` | **CI compiles and analyzes it.** Nobody has run it on a device/emulator; no store assets linked to the running app. |
 | Flutter slice 2 — grid, profiles, intent tags, interest discovery | `app/lib/{screens/grid_screen.dart, screens/profile_screen.dart, screens/home_screen.dart, widgets/{grid_tile.dart, discovery_filters.dart}, discovery/, models/{grid_profile.dart, intent_tag.dart, interest.dart, public_profile.dart}, api/discovery_api.dart}` | **CI compiles and analyzes it.** Same ceiling — built, not run. |
 
-## Not built (unstarted)
+## Chat client increment (feature branch)
+
+The Flutter inbox and conversation UI now exist in `app/lib/screens/` with
+`chat/`, `api/chat_api.dart`, and typed chat models. The increment includes
+WebSocket receive/send with HTTP fallback, stable retry IDs, history pagination,
+moderation-safe display, block handling, and foreground/resume behavior.
+`app/test/` adds isolated API, controller, and widget regressions; CI runs them.
+This is not a live-backend or two-device verification claim. Current validation
+results belong to the feature PR; private beta still needs a real-device pass.
+
+## Remaining feature work
 
 | Item | Notes |
 |------|-------|
-| In-app chat UI | The backend WebSocket + REST fallback exist and are verified; no Flutter chat/inbox screens exist (`app/lib/` has no thread/message screens). |
-| Block/report and privacy-settings UI | Backend endpoints exist; no client UI. |
-| Profile rating system ("Rate this Guy") | 1–5 stars, unlocked after a real 5-minute chat, re-rateable (latest vote wins), aggregate shown next to username. Schema, endpoint, and client prompt are **all unstarted** — no rating tables exist in `db/migrations/`. |
+| Block/report and privacy-settings UI | Local Flutter source and tests now exist, wired to the existing backend. Flutter compile/tests and device behavior are unverified; blocked-user/unblock management remains separate. |
+| Profile rating system ("Rate this Guy") | Migration 0009 and GET/POST `/api/ratings/:id` enforce the approved mutual-message five-minute rule and one re-rateable 1–5-star vote per pair, verified locally with synthetic data. Flutter eligibility/submission UI and tests are authored but unrun. Public aggregate API/display remains outside this step per the latest instruction. |
 
 ## Also true (from the owner-endorsed plan, mapped to reality)
 
@@ -66,3 +86,25 @@ repo; "compiles only" means CI proves it builds but no one has run it.
   `backend/publish.sh`, `go-live.sh`, `build-vercel.sh`, `vercel-entry.ts` are
   ship tooling for the old host; re-host on your own infra.
 - Owner accounts (Apple Developer, Google Play, Firebase) — not yet created.
+
+Report retry follow-up: migration 0010 and client report IDs make same-submission
+retries idempotent; database side effects commit atomically. Existing automatic
+suspension on a CSAM allegation remains a release-blocking false-report/moderation
+policy risk, not approved by this engineering fix. See the launch-readiness report.
+
+
+Local staging preparation (not deployed/pushed): validated environment startup,
+health/readiness, bounded shutdown, static containment and durable database
+waitlist implemented. Backend build/type-check, 32 existing regressions, five
+runtime tests, six browser checks and 18 isolated API/WS groups passed. No Flutter
+source changed; the green PR #6 result at 777700a is separate from this local head.
+
+
+Local moderation follow-up supersedes accusation-based automatic suspension:
+owner approved urgent review and targeted content containment, and selected a
+closed synthetic test. Ross intends to review; no live admin access or operational
+coverage is established. Metadata-only queue and persistent message holds are
+implemented. Specialized review/release/escalation remains a prerequisite.
+33 regressions, five runtime tests, 41 DB checks and 19 API/WS groups pass locally;
+one additional Flutter cache-invalidation test is authored but not executed.
+Remote PR #6 is still the earlier green 777700a; these changes are local only.

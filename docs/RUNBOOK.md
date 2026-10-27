@@ -1,3 +1,5 @@
+> Current acceptance map: [27 October audit](PRODUCT-ACCEPTANCE-2026-10-27.md). Earlier dated verification statements below are historical. PR #6 reached green 8a0036f before this follow-up; later work requires its own checks. Nothing is deployed by this audit.
+
 # BEEF — Runbook
 
 Copy-paste commands to get everything running. Each command is marked with its
@@ -49,8 +51,8 @@ path for the waitlist import script). The app takes `BEEF_API_BASE_URL` as a
 Flutter `--dart-define` at build time, not from an env file. See `.env.example`
 for one-line descriptions.
 
-`serve.ts` deliberately ignores `PORT`/`HOST` — the public surface is pinned to
-`0.0.0.0:3000`.
+`serve.ts` reads `BEEF_HOST` / `BEEF_PORT`; defaults are `127.0.0.1:3000`.
+Generic `PORT`/`HOST` are ignored. See [staging runtime](STAGING-RUNTIME.md).
 
 ## 3. Apply migrations to a fresh Postgres
 
@@ -75,13 +77,13 @@ idempotent. CI never runs migrations.
 
 ## 4. Run the backend (landing site + REST API + chat WebSocket)
 
-Production server — ✅ verified (served `http://0.0.0.0:3000`, chat at `/api/ws`):
+Persistent server (historical public-host verification does not verify a new staging deployment):
 
 ```bash
 cd backend
 bun install
 bun run build          # ✅ ~1s; generates routeTree.gen.ts + dist/
-bun run start          # ✅ serves on 0.0.0.0:3000, frees the port first
+bun --no-env-file serve.ts  # inject required environment first; never takes over a port
 ```
 
 Dev server with hot reload:
@@ -90,15 +92,11 @@ Dev server with hot reload:
 cd backend && bun run dev    # ⚠️ command exists (vite dev on :3000); not re-run this handoff
 ```
 
-Type-check (must report **exactly the 5 known `serve.ts` Bun-global errors** and
-nothing else) — ✅ verified (5 errors, 0 unexpected):
+Type-check — must pass with zero errors (Bun definitions are included):
 
 ```bash
 cd backend
-node_modules/.bin/tsc --noEmit --pretty false > /tmp/tsc.log 2>&1 || true
-grep -E 'error TS[0-9]+' /tmp/tsc.log | grep -v -E '^serve\.ts\(26,35\): error TS2339:' \
-  | grep -v -E '^serve\.ts\((44,9|46,5|61,24|70,11)\): error TS2868:' \
-  || echo "no unexpected errors"
+node_modules/.bin/tsc --noEmit --pretty false
 ```
 
 > Build **before** type-check on a clean checkout (the build generates

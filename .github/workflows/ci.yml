@@ -31,26 +31,16 @@ jobs:
       - name: Build
         run: bun run build
 
-      # serve.ts uses Bun-only globals (Bun.*, import.meta.dir) and reports
-      # EXACTLY five pre-existing type errors under the site's tsconfig. We
-      # tolerate only those five and fail on anything else.
+      - name: Chat privacy and account access regression tests
+        run: bun test tests/chat-idempotency.test.ts tests/runtime.test.ts tests/closed-test.test.ts tests/native-db.test.ts
+
+      # Bun types are included; every TypeScript error now fails CI.
       - name: Type-check
-        run: |
-          node_modules/.bin/tsc --noEmit --pretty false > /tmp/tsc.log 2>&1 || true
-          cat /tmp/tsc.log
-          unexpected=$(grep -E 'error TS[0-9]+' /tmp/tsc.log \
-            | grep -v -E '^serve\.ts\(26,35\): error TS2339:' \
-            | grep -v -E '^serve\.ts\((44,9|46,5|61,24|70,11)\): error TS2868:' \
-            || true)
-          if [ -n "$unexpected" ]; then
-            echo "::error::Unexpected TypeScript errors found:" >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
-          echo "Type-check passed (only the 5 known serve.ts Bun-global errors tolerated)."
+        run: node_modules/.bin/tsc --noEmit --pretty false
 
   flutter:
     name: Flutter — scaffold + analyze + build apk
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -99,8 +89,91 @@ jobs:
       - name: Fetch dependencies
         run: flutter pub get
 
+      - name: Configure generated foreground-only location permissions
+        run: python3 scripts/configure_platforms.py
+
+      - name: Generate BEEF launcher icons from approved master
+        run: dart run flutter_launcher_icons
+
       - name: Analyze
         run: flutter analyze
 
+      - name: Test
+        run: flutter test
+
       - name: Build debug APK
         run: flutter build apk --debug
+
+      # An unconfigured APK contains no server URL, credentials or account data.
+      # It opens only the setup screen; this is a build artifact, not deployment.
+      - name: Retain unconfigured debug APK for one day
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: beef-unconfigured-debug-${{ github.sha }}
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
+
+      # Explicit approved staging build, only on the existing review PR branch.
+      # No request is made to the backend; this is offline compilation/inspection.
+      - name: Test compiled closed-test configuration
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: >-
+          flutter test test/closed_test_build_config_test.dart
+          --dart-define=BEEF_EXPECT_CLOSED_TEST_BUILD=true
+          --dart-define=BEEF_API_BASE_URL=https://beef-synthetic-staging.onrender.com
+          --dart-define=BEEF_ENABLE_DEVICE_LOCATION=false
+
+      - name: Build configured closed-test APK
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: >-
+          flutter build apk --debug
+          --dart-define=BEEF_API_BASE_URL=https://beef-synthetic-staging.onrender.com
+          --dart-define=BEEF_ENABLE_DEVICE_LOCATION=false
+
+      - name: Verify compiled APK configuration offline
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: python3 scripts/verify_closed_test_apk.py
+
+      - name: Retain configured closed-test APK for one day
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: beef-closed-synthetic-test-NOT-DEVICE-TESTED-${{ github.sha }}
+          path: |
+            app/build/app/outputs/flutter-apk/app-debug.apk
+            app/build/closed-test-build-verification.json
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Build offline browser preview without deployment
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: |
+          flutter create "$RUNNER_TEMP/beef_web_scaffold" --org com.beef --project-name beef --platforms web --no-pub
+          cp -a "$RUNNER_TEMP/beef_web_scaffold/web" ./web
+          flutter build web --target=lib/preview_main.dart --no-pub --no-web-resources-cdn
+
+      - name: Retain synthetic offline web preview
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: beef-offline-web-preview-NOT-NATIVE-IOS-${{ github.sha }}
+          path: app/build/web/
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Android emulator runtime with no backend network
+        if: github.head_ref == 'review/private-controls-2026-10-26'
+        run: bash scripts/android_runtime.sh
+
+      - name: Retain Android runtime evidence
+        if: always() && github.head_ref == 'review/private-controls-2026-10-26'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: beef-android-runtime-evidence-${{ github.sha }}
+          path: app/build/runtime-artifacts/
+          retention-days: 1
+          if-no-files-found: warn
+

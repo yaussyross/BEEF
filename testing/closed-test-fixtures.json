@@ -1,0 +1,18 @@
+{
+  "classification": "synthetic-only; do not import before staging target/data approval",
+  "accounts": [
+    {"label": "Fixture A", "email": "fixture-a@example.test", "birthdate": "1990-06-15", "signup_source": "synthetic_demo", "bio": "Synthetic account for coffee and walking chat tests"},
+    {"label": "Fixture B", "email": "fixture-b@example.test", "birthdate": "1992-04-20", "signup_source": "synthetic_demo", "bio": "Synthetic account for conversation and privacy tests"},
+    {"label": "Fixture C", "email": "fixture-c@example.test", "birthdate": "1988-08-10", "signup_source": "synthetic_demo", "bio": "Synthetic nonparticipant authorization fixture"}
+  ],
+  "credentials": "Generate test-only passwords through approved secure setup; none supplied or granted here",
+  "messages": ["Synthetic ordinary conversation", "Synthetic evidence marker for containment testing"],
+  "reports": [
+    {"report_type": "csam", "reason": "Synthetic severe-report workflow test; no harmful media", "target": "specific fixture message", "expected": "message held, account active, urgent metadata-only queue"},
+    {"report_type": "csam", "reason": "Synthetic account-only allegation", "target": "fixture account without a content ID", "expected": "urgent metadata-only queue, no automatic account restriction"},
+    {"report_type": "harassment", "reason": "Synthetic ordinary report", "target": "fixture account", "expected": "ordinary review queue; no automatic ban"}
+  ],
+  "media": [],
+  "external_transmission": false,
+  "invites_or_email": false
+}

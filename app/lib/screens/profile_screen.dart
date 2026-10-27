@@ -5,13 +5,17 @@ import '../api/http_client.dart';
 import '../auth/auth_controller.dart';
 import '../auth/auth_scope.dart';
 import '../config/api_config.dart';
+import '../chat/chat_scope.dart';
+import 'conversation_screen.dart';
 import '../models/public_profile.dart';
+import 'rating_screen.dart';
+import 'safety_screen.dart';
 import '../theme/beef_colors.dart';
 
 /// Another guy's profile (`GET /api/profile/:id`).
 ///
 /// Privacy invariants (enforced server-side, respected here): renders display
-/// name, bio, intent tags, interests, verification badge, and `age_bucket`
+/// name, bio, intent tags, interests, explicit unverified status, and `age_bucket`
 /// only. NEVER a birthdate and NEVER any location — the API does not even
 /// return them, and this screen has no fields for them.
 class ProfileScreen extends StatefulWidget {
@@ -27,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   PublicProfile? _profile;
   String? _error;
   bool _loading = true;
+  bool _startingChat = false;
 
   @override
   void initState() {
@@ -38,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _profile = null;
     });
     try {
       // Read the session without subscribing (event handler, not build).
@@ -46,8 +52,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         baseUrl: ApiConfig.baseUrl,
         tokenStore: auth.tokenStore,
       );
-      final PublicProfile profile =
-          await DiscoveryApi(client).profile(widget.userId);
+      final PublicProfile profile;
+      try {
+        profile = await DiscoveryApi(client).profile(widget.userId);
+      } finally {
+        client.close();
+      }
       if (!mounted) return;
       setState(() {
         _profile = profile;
@@ -62,29 +72,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _startChat() async {
+    if (_startingChat) return;
+    setState(() => _startingChat = true);
+    try {
+      final thread = await ChatScope.read(context).startThread(widget.userId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ConversationScreen(thread: thread),
+        ),
+      );
+      if (mounted) await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is ApiException
+                ? error.message
+                : 'Could not open chat. Try again.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _startingChat = false);
+    }
+  }
+
+  Future<void> _rate() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => RatingScreen(userId: widget.userId),
+    ));
+    if (mounted) await _load();
+  }
+
+  Future<void> _safety() async {
+    final blocked = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
+      builder: (_) => SafetyScreen(userId: widget.userId),
+    ));
+    if (!mounted) return;
+    if (blocked == true) {
+      ChatScope.read(context).confirmBlock(widget.userId);
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_profile?.displayName ?? 'PROFILE'),
-      ),
+      appBar: AppBar(title: Text(_profile?.displayName ?? 'PROFILE'), actions: [
+        IconButton(tooltip: 'Safety options', onPressed: _safety,
+          icon: const Icon(Icons.shield_outlined)),
+      ]),
+      bottomNavigationBar: _profile == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FilledButton.icon(
+                  onPressed: _startingChat ? null : _startChat,
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: Text(_startingChat ? 'Opening chat…' : 'Say hello'),
+                ),
+              ),
+            ),
       body: SafeArea(
         child: _loading
             ? const Center(
                 child: CircularProgressIndicator(color: BeefColors.lime),
               )
             : _error != null
-                ? _ProfileError(message: _error, onRetry: _load)
-                : _profile == null
-                    ? _ProfileError(
-                        message: 'Profile not found.',
-                        onRetry: _load,
-                      )
-                    : _ProfileBody(
-                        profile: _profile!,
-                        theme: theme,
-                      ),
+            ? _ProfileError(message: _error, onRetry: _load)
+            : _profile == null
+            ? _ProfileError(message: 'Profile not found.', onRetry: _load)
+            : _ProfileBody(profile: _profile!, theme: theme, onRate: _rate),
       ),
     );
   }
@@ -134,10 +197,11 @@ class _ProfileError extends StatelessWidget {
 }
 
 class _ProfileBody extends StatelessWidget {
-  const _ProfileBody({required this.profile, required this.theme});
+  const _ProfileBody({required this.profile, required this.theme, required this.onRate});
 
   final PublicProfile profile;
   final ThemeData theme;
+  final VoidCallback onRate;
 
   @override
   Widget build(BuildContext context) {
@@ -161,19 +225,6 @@ class _ProfileBody extends StatelessWidget {
                   ),
                 ),
               ),
-              if (profile.photoVerificationStatus == 'verified')
-                Container(
-                  decoration: const BoxDecoration(
-                    color: BeefColors.lime,
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: const Icon(
-                    Icons.check,
-                    size: 20,
-                    color: BeefColors.char,
-                  ),
-                ),
             ],
           ),
         ),
@@ -192,11 +243,15 @@ class _ProfileBody extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-            if (profile.photoVerificationStatus == 'verified') ...<Widget>[
-              const SizedBox(width: 8),
-              const _CertifiedCutBadge(),
-            ],
           ],
+        ),
+        const SizedBox(height: 12),
+        const Center(child: Text('Photo unverified')),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: onRate,
+          icon: const Icon(Icons.star_outline),
+          label: const Text('Rate this Guy'),
         ),
         if (profile.ageBucket != null) ...<Widget>[
           const SizedBox(height: 4),
@@ -233,10 +288,7 @@ class _ProfileBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            profile.bio!,
-            style: theme.textTheme.bodyLarge,
-          ),
+          Text(profile.bio!, style: theme.textTheme.bodyLarge),
         ],
         if (profile.interests.isNotEmpty) ...<Widget>[
           const SizedBox(height: 24),
@@ -270,43 +322,6 @@ class _ProfileBody extends StatelessWidget {
   static String _capitalise(String value) {
     if (value.isEmpty) return value;
     return value[0].toUpperCase() + value.substring(1);
-  }
-}
-
-/// "Certified Cut" — the photo-verification badge from the feature pack.
-class _CertifiedCutBadge extends StatelessWidget {
-  const _CertifiedCutBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: BeefColors.lime.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: BeefColors.lime),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(
-            Icons.verified,
-            size: 14,
-            color: BeefColors.lime,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Certified Cut',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: BeefColors.lime,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

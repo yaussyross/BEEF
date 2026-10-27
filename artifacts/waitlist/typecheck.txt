@@ -1,0 +1,5 @@
+2026-10-21 follow-up
+Command: backend/node_modules/.bin/tsc --noEmit --pretty false (cwd: backend)
+Exit status: 0
+Diagnostics: none
+Official @types/bun 1.3.14 included; CI no longer suppresses errors.

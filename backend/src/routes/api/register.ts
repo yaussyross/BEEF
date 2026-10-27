@@ -1,3 +1,4 @@
+import { requireAllowedTestEmail, registrationSource } from "~/lib/closed-test";
 import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
 import {
@@ -58,13 +59,15 @@ export const Route = createFileRoute("/api/register")({
         }
 
         try {
+          requireAllowedTestEmail(email);
+          const source = registrationSource(request);
           const passwordHash = await hashPassword(password);
 
           // Atomic user+profile insert. ON CONFLICT DO NOTHING + no returned row
           // means the email is already registered (race-safe).
           const rows = await sql()`WITH new_user AS (
               INSERT INTO users (email, password_hash, birthdate, signup_source)
-              VALUES (${email}, ${passwordHash}, ${birthdate}::date, 'direct')
+              VALUES (${email}, ${passwordHash}, ${birthdate}::date, ${source})
               ON CONFLICT (email) DO NOTHING
               RETURNING id
             )

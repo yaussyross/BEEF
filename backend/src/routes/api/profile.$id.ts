@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProfileText } from "~/lib/moderation";
 import { sql } from "~/db";
 import { requireAuth } from "~/lib/auth";
 import { errorResponse, json } from "~/lib/http";
@@ -24,7 +25,9 @@ export const Route = createFileRoute("/api/profile/$id")({
           const targetId = params.id;
 
           const rows = await sql()`SELECT u.id, u.birthdate::text AS birthdate, p.display_name, p.bio, p.intent_tags::text[] AS intent_tags,
-                                          p.photo_verification_status
+                                          'unverified'::text AS photo_verification_status, EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                  AND mq.target_id = p.id AND mq.source = 'auto'
+                  AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending
                                    FROM users u
                                    JOIN profiles p ON p.user_id = u.id
                                    WHERE u.id = ${targetId}
@@ -42,6 +45,7 @@ export const Route = createFileRoute("/api/profile/$id")({
             | {
                 id: string;
                 birthdate: string;
+                text_review_pending: boolean;
                 display_name: string | null;
                 bio: string | null;
                 intent_tags: string[];
@@ -66,8 +70,8 @@ export const Route = createFileRoute("/api/profile/$id")({
           return json({
             user: {
               id: row.id,
-              display_name: row.display_name,
-              bio: row.bio,
+              display_name: publicProfileText(row.display_name, row.text_review_pending),
+              bio: publicProfileText(row.bio, row.text_review_pending),
               intent_tags: Array.isArray(row.intent_tags) ? row.intent_tags : [],
               photo_verification_status: row.photo_verification_status,
               is_adult: age >= 18,

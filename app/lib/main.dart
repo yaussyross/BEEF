@@ -12,6 +12,14 @@ import 'config/api_config.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (!ApiConfig.isConfigured) {
+    runApp(const MaterialApp(home: Scaffold(body: SafeArea(child: Center(
+      child: Padding(padding: EdgeInsets.all(24), child: Text(
+        'BEEF test build — no server configured.\nUse a build configured for the approved private test server.')),
+    )))));
+    return;
+  }
+
   final TokenStore tokenStore = const SecureTokenStore();
   final ApiClient apiClient = ApiClient(
     baseUrl: ApiConfig.baseUrl,

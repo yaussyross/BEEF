@@ -1,0 +1,40 @@
+bun test v1.3.14 (0d9b296a)
+
+tests/chat-idempotency.test.ts:
+(pass) same-conversation retry returns the original message [1.02ms]
+(pass) cross-conversation reuse cannot deliver private history to a new recipient [0.15ms]
+(pass) existing HTTP token is denied after suspended [2.77ms]
+(pass) WebSocket upgrade denied for suspended [1.63ms]
+(pass) existing HTTP token is denied after banned [0.35ms]
+(pass) WebSocket upgrade denied for banned [0.17ms]
+(pass) existing HTTP token is denied after deleted [0.29ms]
+(pass) WebSocket upgrade denied for deleted [1.10ms]
+(pass) HTTP and upgrade fail closed with 401 [0.58ms]
+(pass) HTTP and upgrade fail closed with 503 [0.65ms]
+(pass) active account can upgrade [0.40ms]
+(pass) existing socket cannot send after suspension [0.68ms]
+(pass) existing socket cannot read after suspension [0.05ms]
+(pass) socket open rechecks status after upgrade; lookup failure also closes [0.28ms]
+(pass) disabled caller cannot access chat domain [0.30ms]
+(pass) disabled caller cannot access chat domain [0.09ms]
+(pass) disabled caller cannot access chat domain [0.09ms]
+(pass) disabled caller cannot access chat domain [0.19ms]
+(pass) inactive peer prevents history, reads and sends [0.11ms]
+(pass) inactive peer prevents history, reads and sends [0.02ms]
+(pass) inactive peer prevents history, reads and sends [0.03ms]
+(pass) recipient-ID path rejects inactive peer before creating a thread [0.20ms]
+(pass) inbox filters out inactive peers in SQL [0.09ms]
+(pass) active participant can mark an unblocked thread read [0.05ms]
+(pass) idle recipient disabled between persistence and delivery receives nothing [0.44ms]
+(pass) suspension closes all sockets even if the later profile update fails [0.16ms]
+(pass) human ban closes existing sockets [0.48ms]
+(pass) broken socket cannot prevent other sockets being revoked [0.07ms]
+(pass) database outage on an existing socket closes it without a read or write [0.16ms]
+(pass) recipient status lookup outage suppresses delivery and closes recipient only [0.20ms]
+(pass) read acknowledgements cannot bypass a block [0.13ms]
+(pass) rating rejects fractional, out-of-range and coerced input [0.15ms]
+
+ 32 pass
+ 0 fail
+ 128 expect() calls
+Ran 32 tests across 1 file. [138.00ms]

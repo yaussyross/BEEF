@@ -2,10 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
 import { requireAuth } from "~/lib/auth";
 import { errorResponse, json, readJson } from "~/lib/http";
-import { enqueueModeration, screenText } from "~/lib/moderation";
+import { screenText } from "~/lib/moderation";
 import {
   INTENT_TAGS,
-  coarseCentroid,
   isCoarseMode,
   isIntentTag,
   type CoarseMode,
@@ -48,7 +47,7 @@ export const Route = createFileRoute("/api/profile")({
 
           const rows = await sql()`SELECT u.id, u.email, u.birthdate::text AS birthdate,
                                           p.display_name, p.bio, p.intent_tags::text[] AS intent_tags,
-                                          p.photo_verification_status, p.coarse_location, p.hide_distance
+                                          'unverified'::text AS photo_verification_status, p.coarse_location, p.hide_distance
                                    FROM users u
                                    JOIN profiles p ON p.user_id = u.id
                                    WHERE u.id = ${userId}
@@ -97,6 +96,16 @@ export const Route = createFileRoute("/api/profile")({
         try {
           const userId = await requireAuth(request);
 
+          // Validate all fields before any writes or moderation side effects.
+          if (has(body, "interests") && (!Array.isArray(body.interests) || !body.interests.every(s => typeof s === "string"))) {
+            return json({ error: "invalid_interests", message: "interests must be an array of slugs." }, { status: 400 });
+          }
+          if (has(body, "bio") && body.bio !== null && (typeof body.bio !== "string" || body.bio.length > 2000)) {
+            return json({ error: "invalid_bio", message: "Bio must be text up to 2000 characters." }, { status: 400 });
+          }
+          if (has(body, "display_name") && (typeof body.display_name !== "string" || body.display_name.trim().length > 80)) {
+            return json({ error: "invalid_display_name", message: "Display name must be text up to 80 characters." }, { status: 400 });
+          }
           const rows = await sql()`SELECT id, bio, intent_tags::text[] AS intent_tags, coarse_location, hide_distance
                                    FROM profiles
                                    WHERE user_id = ${userId}
@@ -119,11 +128,12 @@ export const Route = createFileRoute("/api/profile")({
             ? (typeof body.bio === "string" ? body.bio : null)
             : current.bio;
 
+          let reviewReason: string | null = null;
           // Sauce Check (text screen) on the bio at write time. Blocked content
           // (paid sex / slurs) is refused with a friendly prompt; flagged
           // (suggestive) content is allowed but queued for human review.
-          if (has(body, "bio") && typeof bio === "string" && bio.trim().length > 0) {
-            const screen = screenText(bio);
+          if (has(body, "bio") || has(body, "display_name")) {
+            const screen = screenText([has(body, "bio") ? bio : null, body.display_name].filter(x => typeof x === "string").join(" "));
             if (screen.verdict === "block") {
               return json(
                 { error: "bio_blocked", message: "That bio can't be saved. Keep it saucy, not smutty." },
@@ -131,7 +141,7 @@ export const Route = createFileRoute("/api/profile")({
               );
             }
             if (screen.verdict === "flag") {
-              await enqueueModeration("profile", current.id, "auto", screen.reasons.join(","));
+              reviewReason = screen.reasons.join(",");
             }
           }
 
@@ -174,24 +184,29 @@ export const Route = createFileRoute("/api/profile")({
             hideDistance = body.hide_distance;
           }
 
-          await sql()`UPDATE profiles
-                     SET bio = ${bio},
-                         intent_tags = ${intentTags}::intent_tag[],
-                         coarse_location = ${coarseLocation},
-                         hide_distance = ${hideDistance}
-                     WHERE user_id = ${userId}`;
+          const db = sql();
+          const writes = [db`SELECT id FROM profiles WHERE user_id = ${userId} FOR UPDATE`];
+          writes.push(db`UPDATE profiles
+                     SET display_name = CASE WHEN ${has(body, "display_name")} THEN ${typeof body.display_name === "string" ? body.display_name.trim() : null} ELSE display_name END,
+                         bio = CASE WHEN ${has(body, "bio")} THEN ${bio} ELSE bio END,
+                         intent_tags = CASE WHEN ${has(body, "intent_tags")} THEN ${intentTags}::intent_tag[] ELSE intent_tags END,
+                         coarse_location = CASE WHEN ${has(body, "coarse_location")} THEN ${coarseLocation}::coarse_location_mode ELSE coarse_location END,
+                         hide_distance = CASE WHEN ${has(body, "hide_distance")} THEN ${hideDistance} ELSE hide_distance END
+                     WHERE user_id = ${userId}
+                     RETURNING user_id AS id, display_name, bio, intent_tags::text[] AS intent_tags,
+                       coarse_location, hide_distance`);
 
-          // If the coarse mode changed, recompute the stored coarse centroid from
-          // the server-side precise point so the grid geometry matches the mode.
-          if (coarseLocation !== current.coarse_location) {
-            const locRows = await sql()`SELECT precise_lat, precise_lng FROM locations WHERE user_id = ${userId} LIMIT 1`;
-            const loc = locRows[0] as { precise_lat: number | null; precise_lng: number | null } | undefined;
-            if (loc && loc.precise_lat != null && loc.precise_lng != null) {
-              const coarse = coarseCentroid(coarseLocation, loc.precise_lat, loc.precise_lng);
-              await sql()`UPDATE locations
-                         SET coarse_lat = ${coarse.lat}, coarse_lng = ${coarse.lng}, coarse_mode = ${coarseLocation}
-                         WHERE user_id = ${userId}`;
-            }
+          // Recompute after acquiring the profile row lock, from the current
+          // database mode/point. Never decide from the earlier unlocked read.
+          if (has(body, "coarse_location")) {
+            writes.push(db`UPDATE locations l SET
+              coarse_mode = p.coarse_location,
+              coarse_lat = CASE p.coarse_location WHEN 'exact' THEN round(l.precise_lat::numeric, 6)
+                ELSE round(((floor(l.precise_lat / CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END) + 0.5) * CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END)::numeric, 6) END,
+              coarse_lng = CASE p.coarse_location WHEN 'exact' THEN round(l.precise_lng::numeric, 6)
+                ELSE round(((floor(l.precise_lng / CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END) + 0.5) * CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END)::numeric, 6) END
+              FROM profiles p WHERE p.user_id = ${userId} AND l.user_id = p.user_id
+              AND l.precise_lat IS NOT NULL AND l.precise_lng IS NOT NULL`);
           }
 
           // Replace interests (slugs) when provided. Unknown slugs are ignored
@@ -205,29 +220,26 @@ export const Route = createFileRoute("/api/profile")({
               );
             }
             const slugs = incoming as string[];
-            await sql()`WITH del AS (
-                DELETE FROM profile_interests WHERE profile_id = ${current.id}
-              )
-              INSERT INTO profile_interests (profile_id, interest_id)
+            writes.push(db`DELETE FROM profile_interests WHERE profile_id = ${current.id}`);
+            writes.push(db`INSERT INTO profile_interests (profile_id, interest_id)
               SELECT ${current.id}, i.id
               FROM interests i
               WHERE i.slug = ANY(${slugs}::text[])
-              ON CONFLICT (profile_id, interest_id) DO NOTHING`;
+              ON CONFLICT (profile_id, interest_id) DO NOTHING`);
           }
 
-          const interests = await sql()`SELECT i.slug, i.label
+          if (reviewReason !== null) writes.push(db`INSERT INTO moderation_queue (target_type, target_id, source, reason, status)
+            VALUES ('profile', ${current.id}, 'auto', ${reviewReason}, 'pending')`);
+          writes.push(db`SELECT i.slug, i.label
                                        FROM profile_interests pi
                                        JOIN interests i ON i.id = pi.interest_id
                                        WHERE pi.profile_id = ${current.id}
-                                       ORDER BY i.label`;
-
+                                       ORDER BY i.label`);
+          const results = await db.transaction(writes);
+          const interests = results[results.length - 1];
           return json({
             user: {
-              id: userId,
-              bio,
-              intent_tags: intentTags,
-              coarse_location: coarseLocation,
-              hide_distance: hideDistance,
+              ...results[1][0],
               interests: (interests as unknown as { slug: string; label: string }[]).map((i) => ({
                 slug: i.slug,
                 label: i.label,
