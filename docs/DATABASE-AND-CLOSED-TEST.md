@@ -1,3 +1,5 @@
+> Render-specific preparation: [Blueprint handoff](RENDER-BLUEPRINT.md). Explicit internal TLS mode and closed-test static-route denial supersede the corresponding defaults described below. General verified TLS remains the default. Nothing is deployed by this file.
+
 # Database transport and closed-test access
 
 Local code/test preparation only. No provider, deployment, credential, account,

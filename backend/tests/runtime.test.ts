@@ -89,3 +89,13 @@ test('real service starts on explicit loopback, shuts down, and never takes over
     expect(await service.exited).toBe(0);
   } finally { service.kill(); }
 });
+
+test('closed test hides landing and static pages while retaining generic health probes', async () => {
+  process.env.BEEF_ACCESS_MODE = 'closed_test';
+  process.env.BEEF_CLOSED_TEST_EMAILS = 'fixture@example.test';
+  try {
+    const runtime = createRuntime({ handler: { fetch: () => new Response('must not be exposed') }, clientDir: '/unused', readinessTimeoutMs: 100, checkReady: async () => true });
+    for (const path of ['/', '/asset.js', '/api']) expect((await runtime.fetch(request(path), server))?.status).toBe(404);
+    expect((await runtime.fetch(request('/readyz'), server))?.status).toBe(200);
+  } finally { process.env.BEEF_ACCESS_MODE = 'open'; delete process.env.BEEF_CLOSED_TEST_EMAILS; }
+});

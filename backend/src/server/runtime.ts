@@ -55,6 +55,11 @@ export function createRuntime(options: {
         return request.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
       }
       if (draining) return json(503, 'unavailable');
+      // Closed synthetic builds expose no landing page or static application.
+      if (!pathname.startsWith('/api/')) {
+        try { if (closedTestPolicy().closed) return new Response(null, { status: 404 }); }
+        catch (error) { return errorResponse(error); }
+      }
       if (pathname === '/api/ws') return handleChatUpgrade(request, server);
       if (pathname.startsWith('/api/') && !['/api/login', '/api/register', '/api/refresh', '/api/waitlist'].includes(pathname)) {
         try { if (closedTestPolicy().closed) await requireAuth(request); }

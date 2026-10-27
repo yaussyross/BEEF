@@ -27,11 +27,20 @@ function normalize(value: any): any {
   }
   return value;
 }
-export function nativeOptions(raw: string) {
+export function nativeOptions(raw: string, tlsPolicy = process.env.BEEF_DATABASE_TLS ?? 'verified') {
   let url: URL;
   try { url = new URL(raw); } catch { throw new Error('Invalid DATABASE_URL'); }
   if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error('Invalid DATABASE_URL');
   if (url.searchParams.has('ssl') || url.searchParams.has('tls')) throw new Error('Use sslmode for native PostgreSQL TLS configuration');
+  if (!['verified', 'render_internal'].includes(tlsPolicy)) throw new Error('Invalid BEEF_DATABASE_TLS');
+  if (tlsPolicy === 'render_internal') {
+    // Render internal endpoints use self-signed certificates. Explicit opt-in,
+    // internal-only hostname and mandatory TLS; never a public endpoint fallback.
+    if (!/^dpg-[a-z0-9-]+$/.test(url.hostname) || url.searchParams.has('sslmode')) {
+      throw new Error('Render internal TLS requires an unmodified internal database URL');
+    }
+    return { url: url.href, tls: { rejectUnauthorized: false }, max: 5, idleTimeout: 20, connectionTimeout: 5 };
+  }
   const mode = url.searchParams.get('sslmode') ?? 'verify-full';
   if (!['verify-full', 'disable'].includes(mode)) throw new Error('Native PostgreSQL requires sslmode=verify-full or explicit disable');
   url.searchParams.delete('sslmode');
@@ -49,7 +58,7 @@ export async function closeNativeDatabases(): Promise<void> {
   await Promise.all(current.map(pool => pool.close({ timeout: 1 })));
 }
 function poolFor(url: string, probe = false): { key: string; pool: Bun.SQL } {
-  const key = JSON.stringify([url, probe]);
+  const key = JSON.stringify([url, probe, process.env.BEEF_DATABASE_TLS ?? 'verified']);
   let pool = pools().get(key);
   if (!pool) {
     const options = nativeOptions(url);

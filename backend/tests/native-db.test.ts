@@ -15,3 +15,11 @@ test('PostgreSQL arrays preserve null, quotes, commas and backslashes as bound v
   expect(postgresArray(['a"b'])).toBe('{"a\\"b"}');
   expect(() => postgresArray([{}])).toThrow();
 });
+
+test('Render internal TLS opt-in requires a private hostname and never permits plaintext flags', () => {
+  expect(nativeOptions('postgres://fixture@dpg-synthetic-a/test', 'render_internal').tls).toEqual({ rejectUnauthorized: false });
+  for (const url of ['postgres://fixture@public.example/test', 'postgres://fixture@dpg-fixture.oregon-postgres.render.com/test', 'postgres://fixture@dpg-fixture/test?sslmode=disable']) {
+    expect(() => nativeOptions(url, 'render_internal')).toThrow();
+  }
+  expect(() => nativeOptions('postgres://fixture@localhost/test', 'typo')).toThrow();
+});

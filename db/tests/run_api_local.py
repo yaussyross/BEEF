@@ -37,7 +37,7 @@ try:
     run('docker', 'network', 'create', '--internal', NAME)
     created_network = True
     run('docker', 'run', '-d', '--rm', '--pull=never', '--name', NAME + '-db',
-        '--network', NAME, '--network-alias', 'postgres',
+        '--network', NAME, '--network-alias', 'postgres', '--network-alias', 'dpg-synthetic-a',
         '--tmpfs', '/var/lib/postgresql/data:rw', '-e', 'POSTGRES_DB=beef_test',
         '-e', 'POSTGRES_PASSWORD=' + PASSWORD, POSTGRES)
     for _ in range(60):
@@ -49,10 +49,37 @@ try:
     else:
         raise RuntimeError('Disposable PostgreSQL did not start')
     run('docker', 'cp', str(ROOT / 'db'), NAME + '-db:/tmp/beef-db')
+    if DRIVER == 'postgres':
+        run('docker', 'exec', NAME + '-db', 'mkdir', '-p', '/tmp/backend/src')
+        run('docker', 'cp', str(ROOT / 'backend/src/native-db.ts'), NAME + '-db:/tmp/backend/src/native-db.ts')
+        run('docker', 'cp', str(Path(BUN).resolve()), NAME + '-db:/tmp/beef-bun')
+        native_args = ('docker', 'exec', NAME + '-db', 'env', '-i',
+            'DATABASE_URL=postgres://postgres:' + PASSWORD + '@127.0.0.1:5432/beef_test?sslmode=disable',
+            'BEEF_ACCESS_MODE=closed_test', 'BEEF_STAGING_MIGRATIONS=apply',
+            '/tmp/beef-bun', '--no-env-file', '/tmp/beef-db/migrate-native.ts')
+        tls_probe = run('docker', 'exec', NAME + '-db', 'env', '-i',
+            'DATABASE_URL=postgres://postgres:' + PASSWORD + '@dpg-synthetic-a:5432/beef_test',
+            'BEEF_DATABASE_TLS=render_internal', '/tmp/beef-bun', '--no-env-file', '-e',
+            "import {nativeOptions} from '/tmp/backend/src/native-db.ts'; const o=nativeOptions(process.env.DATABASE_URL); const p=new Bun.SQL(o.url,o); try { await p`SELECT 1`; process.exitCode=2; } catch { console.log('TLS required'); } finally { await p.close({timeout:0}); }")
+        assert 'TLS required' in tls_probe.stdout, 'Internal TLS silently fell back to plaintext'
+        print('PASS internal TLS rejects a PostgreSQL endpoint without TLS', flush=True)
+        first = run(*native_args)
+        assert '11 applied, 11 total' in first.stdout, 'Native fresh migration failed'
+        second = run(*native_args)
+        assert '0 applied, 11 total' in second.stdout, 'Native replay was not a no-op'
+        run('docker', 'exec', NAME + '-db', 'sh', '-c',
+            "printf '%s' 'CREATE TABLE synthetic_rollback_probe(id int); SELECT 1/0;' > /tmp/beef-db/migrations/9999_synthetic_failure.sql")
+        failed = run(*native_args, check=False)
+        assert failed.returncode != 0 and PASSWORD not in failed.stdout, 'Migration failure leaked or succeeded'
+        probe = run('docker', 'exec', NAME + '-db', 'psql', '-U', 'postgres', '-d', 'beef_test', '-tA', '-c',
+            "SELECT to_regclass('synthetic_rollback_probe') IS NULL AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version='9999_synthetic_failure.sql')")
+        assert probe.stdout.strip() == 't', 'Failed migration was not rolled back'
+        run('docker', 'exec', NAME + '-db', 'rm', '/tmp/beef-db/migrations/9999_synthetic_failure.sql')
+        print('PASS native startup migrations apply eleven files, replay without writes and roll back failure with ledger', flush=True)
     migration = run('docker', 'exec', NAME + '-db', 'env',
                     'DATABASE_URL=postgresql:///beef_test?user=postgres',
                     'bash', '/tmp/beef-db/migrate.sh')
-    assert migration.stdout.count('apply  ') == MIGRATION_COUNT, 'Fresh migration count mismatch'
+    assert migration.stdout.count('skip   ' if DRIVER == 'postgres' else 'apply  ') == MIGRATION_COUNT, 'Migration count mismatch'
     # Regenerate the local CA/certificate together in this disposable container:
     # upstream image's baked certificate may be expired. Caddy still verifies it.
     startup = ('openssl req -new -x509 -days 1 -nodes -out server.pem -keyout server.key '

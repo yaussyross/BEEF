@@ -14,7 +14,7 @@ export function serverConfig(env: Record<string, string | undefined>) {
   if (!['postgres:', 'postgresql:'].includes(database.protocol)) throw new Error('DATABASE_URL must use PostgreSQL');
   const driver = env.BEEF_DATABASE_DRIVER ?? 'neon';
   if (!['neon', 'postgres'].includes(driver)) throw new Error('Invalid BEEF_DATABASE_DRIVER');
-  if (driver === 'postgres') nativeOptions(env.DATABASE_URL!);
+  if (driver === 'postgres') nativeOptions(env.DATABASE_URL!, env.BEEF_DATABASE_TLS ?? 'verified');
   closedTestPolicy(env);
   if ((env.JWT_SECRET?.length ?? 0) < 32) throw new Error('JWT_SECRET must contain at least 32 characters');
   if ((env.MODERATION_ADMIN_KEY?.length ?? 0) < 32) throw new Error('MODERATION_ADMIN_KEY must contain at least 32 characters');
