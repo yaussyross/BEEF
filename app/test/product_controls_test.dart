@@ -31,7 +31,7 @@ void main() {
     final editor = tester.widget<TextField>(find.widgetWithText(TextField, 'About me'));
     expect(editor.controller!.text, 'Coffee walks\n\nAsk me about: ');
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Ask me about: board games');
-    await tester.ensureVisible(find.text('Save profile'));
+    await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
     expect(saved.single['bio'], 'Ask me about: board games');
     expect(saved.single.keys.toSet(), {'display_name', 'bio', 'intent_tags', 'interests'});
@@ -94,9 +94,9 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: EditProfileScreen(api: ProfileApi(client))));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Coffee walks');
-    await tester.ensureVisible(find.text('Save profile'));
+    await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
-    expect(find.text('Coffee walks'), findsOneWidget);
+    expect(tester.widget<TextField>(find.widgetWithText(TextField, 'About me')).controller!.text, 'Coffee walks');
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
     expect(saves, 2); expect(find.text('Profile saved.'), findsOneWidget);
     client.close();
