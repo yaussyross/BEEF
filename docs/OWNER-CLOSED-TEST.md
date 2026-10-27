@@ -3,7 +3,8 @@
 The app is a synthetic closed test, not a production launch. The configured debug
 APK points only to `https://beef-synthetic-staging.onrender.com`, has device GPS
 disabled and contains no server/setup/database credentials. CI verifies its
-compiled origin offline; it has not been device-tested. CI artifacts inherit the
+compiled origin offline. Check the exact-head runtime evidence separately: an
+emulator pass does not establish hosted or physical-device acceptance. CI artifacts inherit the
 public repository's artifact access rules: this is a build for restricted staging,
 not a confidential binary. The backend access controls are the security boundary.
 
@@ -49,11 +50,27 @@ There is no secure-channel blocker if you have your existing Render dashboard,
 password manager and a normal private terminal. If those are unavailable, stop;
 we cannot safely substitute chat for credential delivery.
 
-## Device step
+## Android runtime and browser preview
+
+No Android hardware purchase is required. The review CI attempts an accelerated
+Android API 35 emulator with its network disabled before app launch. It installs
+the actual configured APK built in that job, checks launch/background/resume, and
+then tests the same chat screens using controlled synthetic fixtures plus the
+Android secure-storage plugin. The runtime evidence artifact contains screenshots
+and `RESULT.txt` only when the complete runtime suite passes. A failed/skipped CI
+step is not a runtime pass. These offline checks do not contact staging.
+
+CI also builds a separate offline browser preview with synthetic chat and the
+adult gate. It has no real login, registration or backend connection. Its bundle
+is not deployed and has not been validated in iPhone Safari; it is not a native
+iOS build. Do not treat the staging root URL as this preview.
+
+If approved Android devices later become available, the remaining physical-device
+step is:
 
 Download the separately named configured closed-test APK from the verified CI run
 and compare its SHA256 with `closed-test-build-verification.json` in the artifact.
-Install on your two approved Android test devices, then log in using Fixture 1
+Install on two approved Android test devices, then log in using Fixture 1
 and Fixture 2. Run `CLOSED-TEST-ACCEPTANCE.md`. The root web URL intentionally has
 no landing page; it is not a browser-based version of the Flutter app.
 

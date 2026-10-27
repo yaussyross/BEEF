@@ -4,14 +4,25 @@ mkdir -p build/runtime-artifacts
 # Fail explicitly if this free runner cannot accelerate the emulator.
 test -e /dev/kvm || { echo 'BLOCKED: runner has no /dev/kvm'; exit 1; }
 sudo chmod a+rw /dev/kvm
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+test -x "$ANDROID_HOME/platform-tools/adb"
+adb version
 sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 avdmanager="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
 "$sdkmanager" 'system-images;android-35;google_apis;x86_64'
 printf 'no\n' | "$avdmanager" create avd --force -n beef_synthetic -k 'system-images;android-35;google_apis;x86_64'
 "$ANDROID_HOME/emulator/emulator" -avd beef_synthetic -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -memory 2048 -cores 2 -camera-back none -camera-front none > build/runtime-artifacts/emulator.log 2>&1 &
 emulator_pid=$!
-trap 'adb -s emulator-5554 emu kill >/dev/null 2>&1 || true; kill "$emulator_pid" 2>/dev/null || true' EXIT
+cleanup() {
+  result=$?
+  if [[ $result -ne 0 ]]; then tail -n 100 build/runtime-artifacts/emulator.log; fi
+  adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+  kill "$emulator_pid" 2>/dev/null || true
+  exit "$result"
+}
+trap cleanup EXIT
 for attempt in $(seq 1 120); do
+  kill -0 "$emulator_pid" 2>/dev/null || { echo "BLOCKED: emulator exited before boot"; exit 1; }
   if [[ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then break; fi
   sleep 2
 done
