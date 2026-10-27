@@ -12,6 +12,8 @@ import '../widgets/discovery_filters.dart';
 import '../widgets/grid_tile.dart';
 import 'profile_screen.dart';
 import 'privacy_screen.dart';
+import 'edit_profile_screen.dart';
+import 'blocked_users_screen.dart';
 
 /// The proximity grid — the heart of BEEF. Fetches `GET /api/grid` (Bearer
 /// auth via the shared [ApiClient]), renders original BEEF tiles in a 2-up
@@ -84,6 +86,16 @@ class _GridScreenState extends State<GridScreen> {
       appBar: AppBar(
         title: const Text('THE GRID'),
         actions: <Widget>[
+          PopupMenuButton<String>(tooltip: 'My account', onSelected: (value) async {
+            if (value == 'signout') { await AuthScope.read(context).signOut(); return; }
+            await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
+              value == 'edit' ? const EditProfileScreen() : const BlockedUsersScreen()));
+            if (mounted) await controller.refresh();
+          }, itemBuilder: (_) => const [
+            PopupMenuItem(value: 'edit', child: Text('Edit profile')),
+            PopupMenuItem(value: 'blocks', child: Text('Blocked users')),
+            PopupMenuItem(value: 'signout', child: Text('Sign out')),
+          ]),
           IconButton(tooltip: 'Privacy settings', icon: const Icon(Icons.privacy_tip_outlined),
             onPressed: () async {
               await Navigator.of(context).push(MaterialPageRoute<void>(

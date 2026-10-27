@@ -22,6 +22,14 @@ import { dropSocketsForPair } from "~/ws/chat";
 export const Route = createFileRoute("/api/block")({
   server: {
     handlers: {
+      GET: async ({ request }) => {
+        try {
+          const userId = await requireAuth(request);
+          const rows = await sql()`SELECT blocked_id AS user_id, created_at::text AS blocked_at
+            FROM blocks WHERE blocker_id = ${userId} ORDER BY created_at DESC, blocked_id`;
+          return json({ users: rows });
+        } catch (err) { return errorResponse(err); }
+      },
       POST: async ({ request }) => {
         const body = await readJson(request);
         if (!body) {

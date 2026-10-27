@@ -6,9 +6,10 @@ import '../auth/auth_scope.dart';
 import '../config/api_config.dart';
 
 class SafetyScreen extends StatefulWidget {
-  const SafetyScreen({super.key, required this.userId, this.threadId, this.api});
+  const SafetyScreen({super.key, required this.userId, this.threadId, this.messageId, this.api});
   final String userId;
   final String? threadId;
+  final String? messageId;
   final SafetyApi? api;
 
   @override
@@ -58,7 +59,7 @@ class _SafetyScreenState extends State<SafetyScreen> {
     if (_busy || _disabled || _reported || _kind == null) return;
     setState(() { _busy = true; _error = null; _attemptedReport = true; });
     try {
-      await _api!.report(widget.userId, _kind!, _reason.text, clientReportId: _reportId, threadId: widget.threadId);
+      await _api!.report(widget.userId, _kind!, _reason.text, clientReportId: _reportId, threadId: widget.threadId, messageId: widget.messageId);
       if (mounted) setState(() => _reported = true);
     } catch (error) {
       if (mounted) _failed(error, 'Could not confirm your report. You can try again.');
@@ -99,7 +100,7 @@ class _SafetyScreenState extends State<SafetyScreen> {
       OutlinedButton.icon(onPressed: _busy || _disabled ? null : _block,
         icon: const Icon(Icons.block), label: const Text('Block user')),
       const SizedBox(height: 24),
-      Text('Report a concern', style: Theme.of(context).textTheme.titleLarge),
+      Text(widget.messageId == null ? 'Report a concern' : 'Report this message', style: Theme.of(context).textTheme.titleLarge),
       if (_reported)
         Semantics(liveRegion: true, child: const Text('Your report was received for review.'))
       else ...[

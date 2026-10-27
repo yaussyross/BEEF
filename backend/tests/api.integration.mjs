@@ -138,6 +138,36 @@ try {
   await api('/api/me', { token: a.refresh, status: 401 });
   console.log('PASS auth registration/login/refresh, token audience, unauthenticated and underage rejection');
 
+  const beforeInvalid = await api('/api/profile', { token: a.token });
+  await api('/api/profile', { token: a.token, method: 'PUT', status: 400,
+    body: { bio: 'Must not be saved', hide_distance: true, interests: 'invalid' } });
+  const afterInvalid = await api('/api/profile', { token: a.token });
+  assert.equal(afterInvalid.user.bio, beforeInvalid.user.bio, 'Invalid mixed update changed bio');
+  assert.equal(afterInvalid.user.hide_distance, beforeInvalid.user.hide_distance);
+  await api('/api/profile', { token: a.token, method: 'PUT', status: 400, body: { bio: 42 } });
+  await api('/api/profile', { token: a.token, method: 'PUT', status: 400, body: { display_name: 'x'.repeat(81) } });
+  await api('/api/profile', { token: a.token, method: 'PUT', body: { display_name: 'Fixture A', interests: ['live-music'], bio: 'Coffee' } });
+  await Promise.all([
+    api('/api/profile', { token: a.token, method: 'PUT', body: { hide_distance: true } }),
+    api('/api/profile', { token: a.token, method: 'PUT', body: { bio: 'Walks' } }),
+  ]);
+  const edited = await api('/api/profile', { token: a.token });
+  assert.equal(edited.user.display_name, 'Fixture A');
+  assert.equal(edited.user.bio, 'Walks');
+  assert.equal(edited.user.hide_distance, true);
+  assert.deepEqual(edited.user.interests.map(i => i.slug), ['live-music']);
+  await sql`CREATE FUNCTION synthetic_fail_interests() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'synthetic profile rollback'; END; $$`;
+  await sql`CREATE TRIGGER synthetic_profile_failure BEFORE INSERT ON profile_interests FOR EACH ROW EXECUTE FUNCTION synthetic_fail_interests()`;
+  await api('/api/profile', { token: a.token, method: 'PUT', status: 500,
+    body: { bio: 'Must roll back', interests: ['hiking'] } });
+  const rolledBack = await api('/api/profile', { token: a.token });
+  assert.equal(rolledBack.user.bio, 'Walks');
+  assert.deepEqual(rolledBack.user.interests.map(i => i.slug), ['live-music']);
+  await sql`DROP TRIGGER synthetic_profile_failure ON profile_interests`;
+  await sql`DROP FUNCTION synthetic_fail_interests()`;
+  console.log('PASS profile validation before mutation, display-name editing and concurrent partial updates');
+
   for (const [person, lat] of [[a, 37.7749], [b, 37.775]]) {
     const location = await api('/api/location', { token: person.token, method: 'POST', body: { lat, lng: -122.4194, coarse_location: 'city' } });
     publicPayload(location);
@@ -146,6 +176,11 @@ try {
   const profile = await api(`/api/profile/${b.id}`, { token: a.token });
   publicPayload(profile);
   assert.deepEqual(profile.user.intent_tags, ['friends', 'chat']);
+  await api('/api/profile', { token: b.token, method: 'PUT', body: { interests: ['hiking'] } });
+  assert.ok((await api('/api/grid?interests=hiking', { token: a.token })).items.some(i => i.user_id === b.id));
+  assert.equal((await api('/api/grid?interests=dogs', { token: a.token })).items.length, 0);
+  await api('/api/grid?interests=bad%20slug', { token: a.token, status: 400 });
+  console.log('PASS selected interest discovery filters actual interests on the server');
   const grid = await api('/api/grid', { token: a.token });
   publicPayload(grid);
   assert.ok(grid.items.some(item => item.user_id === b.id));
@@ -369,6 +404,12 @@ try {
   assert.equal((await api('/api/threads', { token: b.token })).threads.length, 0);
   await api(ratingPath, { token: a.token, method: 'POST', status: 404, body: { stars: 2 } });
   await api(`/api/ratings/${a.id}`, { token: b.token, method: 'POST', status: 404, body: { stars: 2 } });
+  await api('/api/block', { status: 401 });
+  const blockedList = await api('/api/block', { token: a.token });
+  assert.deepEqual(blockedList.users.map(u => u.user_id), [b.id]);
+  assert.deepEqual(Object.keys(blockedList.users[0]).sort(), ['blocked_at', 'user_id']);
+  assert.deepEqual((await api('/api/block', { token: b.token })).users, []);
+  console.log('PASS block list is caller-scoped and contains no private profile information');
   await api('/api/block', { token: a.token, method: 'DELETE', body: { blocked_user_id: b.id } });
   console.log('PASS REST block closes sockets across bundled modules and prevents both directions of access');
 

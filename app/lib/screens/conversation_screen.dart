@@ -77,13 +77,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
-  Future<void> _safety() async {
+  Future<void> _safety({String? messageId}) async {
     if (_openingAction) return;
     setState(() => _openingAction = true);
     final chat = _chat!;
     chat.leaveThread(widget.thread.id);
     final blocked = await Navigator.of(context).push<bool>(MaterialPageRoute<bool>(
-      builder: (_) => SafetyScreen(userId: widget.thread.otherUserId, threadId: widget.thread.id),
+      builder: (_) => SafetyScreen(userId: widget.thread.otherUserId, threadId: widget.thread.id, messageId: messageId),
     ));
     if (!mounted) return;
     if (blocked == true) {
@@ -205,6 +205,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           key: ValueKey(message.id),
                           message: message,
                           own: message.senderId == chat.userId,
+                          report: message.senderId == chat.userId || _openingAction ? null : () => _safety(messageId: message.id),
                           retry: chat.sending
                               ? null
                               : () => chat.retry(message.clientMessageId),
@@ -270,10 +271,12 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.own,
     this.retry,
+    this.report,
   });
   final ChatMessage message;
   final bool own;
   final VoidCallback? retry;
+  final VoidCallback? report;
 
   @override
   Widget build(BuildContext context) {
@@ -300,6 +303,8 @@ class _MessageBubble extends StatelessWidget {
           children: [
             if (!message.isVisible) const Icon(Icons.shield_outlined, size: 18),
             Text(message.displayBody),
+            if (report != null) TextButton.icon(onPressed: report,
+              icon: const Icon(Icons.flag_outlined, size: 16), label: const Text('Report message')),
             const SizedBox(height: 5),
             Text(
               message.delivery == MessageDelivery.sending

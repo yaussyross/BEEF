@@ -1,12 +1,12 @@
-/// Compile-time API configuration.
-///
-/// The backend API is served by the same host as the BEEF site (under
-/// `src/routes/api/*`). Override the base URL per environment at build time:
-///
-///   flutter build ... --dart-define=BEEF_API_BASE_URL=https://your-host
+/// Explicit build target. No historical host or credentials are bundled.
 abstract final class ApiConfig {
-  static const String baseUrl = String.fromEnvironment(
-    'BEEF_API_BASE_URL',
-    defaultValue: 'https://6a67ca40db0e489b44ec1ac481ec6ea6.ctonew.app',
-  );
+  static const String _configuredUrl = String.fromEnvironment('BEEF_API_BASE_URL');
+  static String get baseUrl => _configuredUrl.replaceFirst(RegExp(r'/$'), '');
+  static bool isValid(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty &&
+      uri.userInfo.isEmpty && !uri.hasQuery && !uri.hasFragment &&
+      (uri.path.isEmpty || uri.path == '/');
+  }
+  static bool get isConfigured => isValid(baseUrl);
 }

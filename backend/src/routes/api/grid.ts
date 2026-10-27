@@ -69,6 +69,11 @@ export const Route = createFileRoute("/api/grid")({
             );
           }
           const intent: string | null = intentParam;
+          const interests = [...new Set((url.searchParams.get("interests") ?? "").split(",").filter(Boolean))];
+          if (interests.length > 16 || interests.some(s => !/^[a-z0-9-]{1,80}$/.test(s))) {
+            return json({ error: "invalid_interests", message: "Choose valid interest slugs." }, { status: 400 });
+          }
+
 
           // The viewer's own effective origin: travel point while travelling,
           // otherwise the coarse centroid. precise_* is never read here.
@@ -133,6 +138,10 @@ export const Route = createFileRoute("/api/grid")({
               WHERE u.id <> ${userId}
                 AND u.status = 'active'
                 AND p.moderation_status IN ('pending', 'approved')
+                AND (${interests.length === 0} OR EXISTS (
+                  SELECT 1 FROM profile_interests pi JOIN interests i ON i.id = pi.interest_id
+                  WHERE pi.profile_id = p.id AND i.slug = ANY(${interests}::text[])
+                ))
                 AND NOT EXISTS (
                   SELECT 1 FROM blocks b WHERE b.blocker_id = ${userId} AND b.blocked_id = u.id
                 )

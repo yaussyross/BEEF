@@ -1,3 +1,5 @@
+> Current acceptance map: [27 October audit](PRODUCT-ACCEPTANCE-2026-10-27.md). Earlier dated verification statements below are historical. PR #6 reached green 8a0036f before this follow-up; later work requires its own checks. Nothing is deployed by this audit.
+
 # BEEF — Roadmap (working checklist)
 
 The plan of record for what happens next, consistent with `docs/BUSINESS.md`

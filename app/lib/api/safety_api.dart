@@ -37,17 +37,37 @@ class SafetyApi {
     }
   }
 
+  Future<List<BlockedUser>> blockedUsers() async {
+    final data = await _client.get('/api/block');
+    return (data['users'] as List).map((item) => BlockedUser(
+      item['user_id'] as String, item['blocked_at'] as String)).toList();
+  }
+
+  Future<void> unblock(String userId) async {
+    final data = await _client.delete('/api/block', body: {'blocked_user_id': userId});
+    if (data['ok'] != true || data['blocked'] != false) {
+      throw const FormatException('Unblock was not confirmed');
+    }
+  }
+
   Future<void> report(String userId, ReportKind kind, String reason,
-      {required String clientReportId, String? threadId}) async {
+      {required String clientReportId, String? threadId, String? messageId}) async {
     final data = await _client.post('/api/report', body: {
       'client_report_id': clientReportId,
       'report_type': kind.value,
       'reason': reason.trim(),
-      if (threadId == null) 'reported_user_id': userId,
-      if (threadId != null) 'thread_id': threadId,
+      if (messageId == null && threadId == null) 'reported_user_id': userId,
+      if (messageId == null && threadId != null) 'thread_id': threadId,
+      if (messageId != null) 'message_id': messageId,
     });
     if (data['ok'] != true || data['report_id'] is! String) {
       throw const FormatException('Report was not confirmed');
     }
   }
+}
+
+class BlockedUser {
+  const BlockedUser(this.userId, this.blockedAt);
+  final String userId;
+  final String blockedAt;
 }
