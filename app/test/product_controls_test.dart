@@ -32,6 +32,7 @@ void main() {
     expect(editor.controller!.text, 'Coffee walks\n\nAsk me about: ');
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Ask me about: board games');
     await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
     expect(saved.single['bio'], 'Ask me about: board games');
     expect(saved.single.keys.toSet(), {'display_name', 'bio', 'intent_tags', 'interests'});
@@ -96,9 +97,11 @@ void main() {
     final draftController = tester.widget<TextField>(find.widgetWithText(TextField, 'About me')).controller!;
     await tester.enterText(find.widgetWithText(TextField, 'About me'), 'Coffee walks');
     await tester.scrollUntilVisible(find.text('Save profile'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
     expect(draftController.text, 'Coffee walks');
     await tester.scrollUntilVisible(find.text('Save profile'), 100, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save profile')); await tester.pumpAndSettle();
     expect(saves, 2); expect(find.text('Profile saved.'), findsOneWidget);
     client.close();
