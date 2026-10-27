@@ -173,6 +173,28 @@ try {
     publicPayload(location);
     await api('/api/profile', { token: person.token, method: 'PUT', body: { intent_tags: ['friends', 'chat'], bio: 'Coffee and walks' } });
   }
+  // Make the second request read the original city mode while the exact
+  // update holds the row lock. It must recompute from the committed mode.
+  await sql`CREATE FUNCTION synthetic_pause_exact() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.coarse_location = 'exact' THEN PERFORM pg_sleep(0.5); END IF; RETURN NEW; END; $$`;
+  await sql`CREATE TRIGGER synthetic_privacy_pause BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION synthetic_pause_exact()`;
+  const exactChange = api('/api/profile', { token: a.token, method: 'PUT', body: { coarse_location: 'exact' } });
+  let paused = false;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    paused = (await sql`SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event = 'PgSleep'`)[0].n > 0;
+    if (paused) break;
+    await Bun.sleep(10);
+  }
+  assert.ok(paused, 'Fixture exact update should hold the profile lock');
+  const cityChange = api('/api/profile', { token: a.token, method: 'PUT', body: { coarse_location: 'city' } });
+  await Promise.all([exactChange, cityChange]);
+  const privacyState = (await sql`SELECT p.coarse_location, l.coarse_mode, l.coarse_lat FROM profiles p JOIN locations l ON l.user_id = p.user_id WHERE p.user_id = ${a.id}`)[0];
+  assert.equal(privacyState.coarse_location, 'city');
+  assert.equal(privacyState.coarse_mode, 'city');
+  assert.equal(Number(privacyState.coarse_lat), 37.75);
+  await sql`DROP TRIGGER synthetic_privacy_pause ON profiles`;
+  await sql`DROP FUNCTION synthetic_pause_exact()`;
+  console.log('PASS concurrent privacy choices keep stored geometry consistent with the final mode');
   const profile = await api(`/api/profile/${b.id}`, { token: a.token });
   publicPayload(profile);
   assert.deepEqual(profile.user.intent_tags, ['friends', 'chat']);
@@ -186,6 +208,11 @@ try {
   assert.ok(grid.items.some(item => item.user_id === b.id));
   assert.ok(grid.items.every(item => ['<1 mi', '1–5 mi', '5–20 mi', '20–50 mi', '50+ mi', 'nearby'].includes(item.distance)));
   await api('/api/profile', { token: b.token, method: 'PUT', body: { hide_distance: true, coarse_location: 'region' } });
+  await api('/api/location', { token: b.token, method: 'POST', body: { lat: 37.775, lng: -122.4194 } });
+  await api('/api/location', { token: b.token, method: 'POST', status: 400,
+    body: { lat: 37.775, lng: -122.4194, hide_distance: 'false' } });
+  assert.equal((await api('/api/profile', { token: b.token })).user.hide_distance, true,
+    'Updating location must not silently reset hide-distance');
   const own = await api('/api/profile', { token: b.token });
   assert.equal(own.user.hide_distance, true);
   assert.equal(own.user.coarse_location, 'region');
@@ -201,6 +228,17 @@ try {
 
   const ab = (await api('/api/threads', { token: a.token, method: 'POST', status: 201, body: { other_user_id: b.id } })).thread.id;
   const ac = (await api('/api/threads', { token: a.token, method: 'POST', status: 201, body: { other_user_id: c.id } })).thread.id;
+  await sql`UPDATE profiles SET moderation_status = 'approved' WHERE user_id = ${b.id}`;
+  await api('/api/profile', { token: b.token, method: 'PUT', body: { display_name: 'dick', bio: 'Harmless fixture bio' } });
+  const flaggedProfile = await api(`/api/profile/${b.id}`, { token: a.token });
+  assert.equal(flaggedProfile.user.display_name, null);
+  assert.equal(flaggedProfile.user.bio, 'Harmless fixture bio');
+  assert.equal((await api('/api/grid', { token: a.token })).items.find(i => i.user_id === b.id).display_name, null);
+  assert.equal((await api('/api/threads', { token: a.token })).threads.find(t => t.other_user_id === b.id).other_display_name, null);
+  assert.equal((await api('/api/threads', { token: a.token, method: 'POST', status: 201, body: { other_user_id: b.id } })).thread.other_display_name, null);
+  await api('/api/profile', { token: b.token, method: 'PUT', body: { display_name: 'Fixture B' } });
+  assert.equal((await api(`/api/profile/${b.id}`, { token: a.token })).user.display_name, 'Fixture B');
+  console.log('PASS flagged profile names are contained across grid/profile/chat while clean rewrites remain visible');
   const sa = await connect(a.token);
   const sb = await connect(b.token);
   sa.ws.send(JSON.stringify({ type: 'send', thread_id: ab, client_message_id: 'ws-one', body: 'Hello from A' }));

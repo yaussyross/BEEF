@@ -28,7 +28,18 @@ Invalid mixed profile updates must make no partial changes; simultaneous updates
 
 ## Tasks
 
-- [ ] Add failing integration coverage for atomic profile validation and caller-scoped block list; implement and verify.
-- [ ] Add Flutter editor, block management and exact-message reporting with loading/error/retry/disabled-account regression coverage.
-- [ ] Prepare inert configuration, bundled assets and reproducible test artifact; run verification.
-- [ ] Reconcile historical docs with current results and exact external setup gates.
+- [x] Add failing integration coverage for atomic profile validation and caller-scoped block list; implement and verify.
+- [x] Add Flutter editor, block management and exact-message reporting with loading/error/retry/disabled-account regression coverage.
+- [x] Prepare inert configuration, bundled assets and reproducible test artifact; run verification.
+- [x] Reconcile historical docs with current results and exact external setup gates.
+
+
+Review ledger: independent review identified flagged profile names and an existing
+privacy geometry race; both reproduced with real API/DB regressions and fixed.
+A location-only update also reset hide-distance; it was reproduced and fixed.
+Synthetic test-area selection makes the closed test grid usable without any
+real device location collection. New final-head CI must verify that follow-up.
+Client tests were authored locally and executed in permitted CI because local
+Flutter remains unavailable; no denied download was retried. Native real-data
+location, photo/verification lifecycle, aggregate publication, prompt/consent
+semantics and account retention/recovery remain explicitly unfinished.

@@ -1,0 +1,46 @@
+Synthetic-only local verification, 27 October 2026. No hosted/device verification.
+Backend build and tsc completed with exit 0.
+Real API/WS suite (24 groups):
+PASS fresh migrated PostgreSQL reachable through real Neon HTTP driver
+PASS service liveness and database/schema readiness through the production runtime
+PASS waitlist validation, concurrent case-insensitive deduplication and persistence across server instances without account creation
+PASS auth registration/login/refresh, token audience, unauthenticated and underage rejection
+PASS profile validation before mutation, display-name editing and concurrent partial updates
+PASS concurrent privacy choices keep stored geometry consistent with the final mode
+PASS selected interest discovery filters actual interests on the server
+PASS intent-array decoding, grid distance buckets and public payload privacy
+PASS flagged profile names are contained across grid/profile/chat while clean rewrites remain visible
+PASS real WebSocket send/ack/delivery/read and REST history/idempotency/privacy/participant guards
+PASS ratings enforce mutual 299/300/301-second boundaries, reject timing/identity/input abuse and replace concurrent re-ratings
+PASS in-chat report accepts a participant and rejects outsiders
+PASS report concurrent identical retries, changed-key misuse and authenticated reporter isolation
+PASS committed report with discarded response recovers the original receipt on retry
+PASS atomic specific-message containment, restricted evidence, safe metadata queue, no account suspension and replay/restoration guards
+PASS block list is caller-scoped and contains no private profile information
+PASS REST block closes sockets across bundled modules and prevents both directions of access
+PASS account/thread-only severe allegations queue urgent review without automatic account or conversation restriction
+PASS independently applied suspension rejects existing socket actions, tokens, refresh, upgrade and chat
+PASS human moderation ban revokes existing socket and HTTP session
+PASS direct status change is enforced on an existing socket next action and HTTP request
+PASS readiness and durable waitlist fail closed during database outage and recover on retry
+PASS transport outage fails closed on active socket, HTTP and upgrade; recovery restores access
+PASS all persisted accounts are synthetic fixtures
+Removed disposable proxy, PostgreSQL data and private network.
+unit suite:
+ 33 pass
+ 0 fail
+Ran 33 tests across 1 file. [138.00ms]
+runtime suite:
+ 5 pass
+ 0 fail
+Ran 5 tests across 1 file. [372.00ms]
+Database contracts: 41 checks; 11 migrations applied and idempotent re-run, disposable PostgreSQL removed.
+Browser checks:
+PASS anchor and empty-email validation
+PASS loading, duplicate-submit guard, network failure and retained input
+PASS server validation error
+PASS retry and confirmed success UI (mock receipt; database tested separately)
+PASS storage failure recovers without false success
+PASS responsive widths, keyboard focus and reduced motion
+Generated-platform fixture: two runs preserve idempotency; coarse-only Android access; background/service permissions removed; iOS WhenInUse and Always bypass verified.
+Local Flutter unavailable; no download denial retried. CI420ced8 passed59tests; subsequent native/fixture tests require latest-head CI.

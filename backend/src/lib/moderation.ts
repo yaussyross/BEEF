@@ -649,3 +649,10 @@ async function applyToTarget(
 
   throw new ModerationError(400, "invalid_target", `Unknown moderation target type: ${targetType}.`);
 }
+
+/** Pending automatic text review hides only flagged text, never the account.
+ * Clean rewrites remain visible; human-approved queue items release the hold.
+ */
+export function publicProfileText(text: string | null, reviewPending: boolean): string | null {
+  return reviewPending && screenText(text ?? "").verdict !== "allow" ? null : text;
+}

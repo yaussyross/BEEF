@@ -1,6 +1,6 @@
 import { sql } from "../db";
 import { requireActiveAccount } from "./auth";
-import { enqueueModeration, screenText } from "./moderation";
+import { enqueueModeration, screenText, publicProfileText } from "./moderation";
 
 /**
  * BEEF — chat domain logic (server-only). Shared by the REST hydration routes
@@ -348,6 +348,9 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
       tp.last_read_at::text AS last_read_at,
       other.id AS other_user_id,
       other_p.display_name AS other_display_name,
+      EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                  AND mq.target_id = other_p.id AND mq.source = 'auto'
+                  AND (mq.status = 'pending' OR (other_p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending,
       other_p.photo_verification_status AS other_photo_verification_status,
       last_msg.id AS last_msg_id,
       last_msg.sender_id AS last_msg_sender_id,
@@ -388,6 +391,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
     last_read_at: string | null;
     other_user_id: string;
     other_display_name: string | null;
+    text_review_pending: boolean;
     other_photo_verification_status: string;
     last_msg_id: string | null;
     last_msg_sender_id: string | null;
@@ -400,7 +404,7 @@ export async function listThreads(userId: string): Promise<ThreadSummary[]> {
   return summaries.map((r) => ({
     id: r.id,
     other_user_id: r.other_user_id,
-    other_display_name: r.other_display_name,
+    other_display_name: publicProfileText(r.other_display_name, r.text_review_pending),
     other_photo_verification_status: r.other_photo_verification_status,
     last_message:
       r.last_msg_id === null

@@ -14,6 +14,8 @@ import 'profile_screen.dart';
 import 'privacy_screen.dart';
 import 'edit_profile_screen.dart';
 import 'blocked_users_screen.dart';
+import 'test_location_screen.dart';
+import 'device_location_screen.dart';
 
 /// The proximity grid — the heart of BEEF. Fetches `GET /api/grid` (Bearer
 /// auth via the shared [ApiClient]), renders original BEEF tiles in a 2-up
@@ -89,9 +91,11 @@ class _GridScreenState extends State<GridScreen> {
           PopupMenuButton<String>(tooltip: 'My account', onSelected: (value) async {
             if (value == 'signout') { await AuthScope.read(context).signOut(); return; }
             await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) =>
-              value == 'edit' ? const EditProfileScreen() : const BlockedUsersScreen()));
+              value == 'edit' ? const EditProfileScreen() : value == 'location' ? const TestLocationScreen() : value == 'device-location' ? const DeviceLocationScreen() : const BlockedUsersScreen()));
             if (mounted) await controller.refresh();
           }, itemBuilder: (_) => const [
+            if (ApiConfig.deviceLocationEnabled) PopupMenuItem(value: 'device-location', child: Text('Update location')),
+            PopupMenuItem(value: 'location', child: Text('Synthetic test area')),
             PopupMenuItem(value: 'edit', child: Text('Edit profile')),
             PopupMenuItem(value: 'blocks', child: Text('Blocked users')),
             PopupMenuItem(value: 'signout', child: Text('Sign out')),

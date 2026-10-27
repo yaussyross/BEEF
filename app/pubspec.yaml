@@ -13,6 +13,7 @@ dependencies:
 
   # API client layer (lib/api/) — JSON over HTTP + refresh-on-401.
   http: ^1.2.2
+  geolocator: 14.1.2
   # Token storage in the platform secure keystore (iOS Keychain /
   # Android EncryptedSharedPreferences). Never shared prefs.
   flutter_secure_storage: ^9.2.2

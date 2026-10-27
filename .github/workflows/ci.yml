@@ -88,6 +88,9 @@ jobs:
       - name: Fetch dependencies
         run: flutter pub get
 
+      - name: Configure generated foreground-only location permissions
+        run: python3 scripts/configure_platforms.py
+
       - name: Analyze
         run: flutter analyze
 
@@ -96,3 +99,14 @@ jobs:
 
       - name: Build debug APK
         run: flutter build apk --debug
+
+      # An unconfigured APK contains no server URL, credentials or account data.
+      # It opens only the setup screen; this is a build artifact, not deployment.
+      - name: Retain unconfigured debug APK for one day
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: beef-unconfigured-debug-${{ github.sha }}
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProfileText } from "~/lib/moderation";
 import { sql } from "~/db";
 import { requireAuth } from "~/lib/auth";
 import { errorResponse, json } from "~/lib/http";
@@ -14,6 +15,7 @@ interface GridRow {
   user_id: string;
   display_name: string | null;
   bio: string | null;
+  text_review_pending: boolean;
   intent_tags: string[];
   photo_verification_status: string;
   coarse_location: string;
@@ -110,6 +112,9 @@ export const Route = createFileRoute("/api/grid")({
                 u.id AS user_id,
                 p.display_name,
                 p.bio,
+                EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                  AND mq.target_id = p.id AND mq.source = 'auto'
+                  AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending,
                 p.intent_tags::text[] AS intent_tags,
                 p.photo_verification_status,
                 p.coarse_location,
@@ -162,6 +167,7 @@ export const Route = createFileRoute("/api/grid")({
               user_id,
               display_name,
               bio,
+              text_review_pending,
               intent_tags,
               photo_verification_status,
               coarse_location,
@@ -185,8 +191,8 @@ export const Route = createFileRoute("/api/grid")({
 
           const items = results.map((row) => ({
             user_id: row.user_id,
-            display_name: row.display_name,
-            bio: row.bio,
+            display_name: publicProfileText(row.display_name, row.text_review_pending),
+            bio: publicProfileText(row.bio, row.text_review_pending),
             intent_tags: Array.isArray(row.intent_tags) ? row.intent_tags : [],
             photo_verification_status: row.photo_verification_status,
             distance: distanceLabel(

@@ -5,7 +5,6 @@ import { errorResponse, json, readJson } from "~/lib/http";
 import { screenText } from "~/lib/moderation";
 import {
   INTENT_TAGS,
-  coarseCentroid,
   isCoarseMode,
   isIntentTag,
   type CoarseMode,
@@ -193,19 +192,21 @@ export const Route = createFileRoute("/api/profile")({
                          intent_tags = CASE WHEN ${has(body, "intent_tags")} THEN ${intentTags}::intent_tag[] ELSE intent_tags END,
                          coarse_location = CASE WHEN ${has(body, "coarse_location")} THEN ${coarseLocation}::coarse_location_mode ELSE coarse_location END,
                          hide_distance = CASE WHEN ${has(body, "hide_distance")} THEN ${hideDistance} ELSE hide_distance END
-                     WHERE user_id = ${userId}`);
+                     WHERE user_id = ${userId}
+                     RETURNING user_id AS id, display_name, bio, intent_tags::text[] AS intent_tags,
+                       coarse_location, hide_distance`);
 
-          // If the coarse mode changed, recompute the stored coarse centroid from
-          // the server-side precise point so the grid geometry matches the mode.
-          if (coarseLocation !== current.coarse_location) {
-            const locRows = await sql()`SELECT precise_lat, precise_lng FROM locations WHERE user_id = ${userId} LIMIT 1`;
-            const loc = locRows[0] as { precise_lat: number | null; precise_lng: number | null } | undefined;
-            if (loc && loc.precise_lat != null && loc.precise_lng != null) {
-              const coarse = coarseCentroid(coarseLocation, loc.precise_lat, loc.precise_lng);
-              writes.push(db`UPDATE locations
-                         SET coarse_lat = ${coarse.lat}, coarse_lng = ${coarse.lng}, coarse_mode = ${coarseLocation}
-                         WHERE user_id = ${userId}`);
-            }
+          // Recompute after acquiring the profile row lock, from the current
+          // database mode/point. Never decide from the earlier unlocked read.
+          if (has(body, "coarse_location")) {
+            writes.push(db`UPDATE locations l SET
+              coarse_mode = p.coarse_location,
+              coarse_lat = CASE p.coarse_location WHEN 'exact' THEN round(l.precise_lat::numeric, 6)
+                ELSE round(((floor(l.precise_lat / CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END) + 0.5) * CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END)::numeric, 6) END,
+              coarse_lng = CASE p.coarse_location WHEN 'exact' THEN round(l.precise_lng::numeric, 6)
+                ELSE round(((floor(l.precise_lng / CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END) + 0.5) * CASE p.coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END)::numeric, 6) END
+              FROM profiles p WHERE p.user_id = ${userId} AND l.user_id = p.user_id
+              AND l.precise_lat IS NOT NULL AND l.precise_lng IS NOT NULL`);
           }
 
           // Replace interests (slugs) when provided. Unknown slugs are ignored
@@ -229,20 +230,16 @@ export const Route = createFileRoute("/api/profile")({
 
           if (reviewReason !== null) writes.push(db`INSERT INTO moderation_queue (target_type, target_id, source, reason, status)
             VALUES ('profile', ${current.id}, 'auto', ${reviewReason}, 'pending')`);
-          await db.transaction(writes);
-          const interests = await sql()`SELECT i.slug, i.label
+          writes.push(db`SELECT i.slug, i.label
                                        FROM profile_interests pi
                                        JOIN interests i ON i.id = pi.interest_id
                                        WHERE pi.profile_id = ${current.id}
-                                       ORDER BY i.label`;
-
+                                       ORDER BY i.label`);
+          const results = await db.transaction(writes);
+          const interests = results[results.length - 1];
           return json({
             user: {
-              id: userId,
-              bio,
-              intent_tags: intentTags,
-              coarse_location: coarseLocation,
-              hide_distance: hideDistance,
+              ...results[1][0],
               interests: (interests as unknown as { slug: string; label: string }[]).map((i) => ({
                 slug: i.slug,
                 label: i.label,

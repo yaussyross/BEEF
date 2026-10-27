@@ -3,7 +3,6 @@ import { sql } from "~/db";
 import { requireAuth } from "~/lib/auth";
 import { errorResponse, json, readJson } from "~/lib/http";
 import {
-  coarseCentroid,
   isCoarseMode,
   isValidLat,
   isValidLng,
@@ -50,15 +49,11 @@ export const Route = createFileRoute("/api/location")({
             );
           }
 
-          // Coarse mode: prefer the value in this request; otherwise fall back
-          // to the stored profile choice (default 'city' for a brand-new user).
-          let coarseLocation = isCoarseMode(body.coarse_location) ? body.coarse_location : null;
-          if (!coarseLocation) {
-            const existing = await sql()`SELECT coarse_location FROM profiles WHERE user_id = ${userId} LIMIT 1`;
-            const row = existing[0] as { coarse_location?: string } | undefined;
-            coarseLocation = isCoarseMode(row?.coarse_location) ? row.coarse_location : "city";
+          if ((Object.hasOwn(body, "coarse_location") && !isCoarseMode(body.coarse_location)) ||
+              (Object.hasOwn(body, "hide_distance") && typeof body.hide_distance !== "boolean") ||
+              (Object.hasOwn(body, "travel_mode") && typeof body.travel_mode !== "boolean")) {
+            return json({ error: "invalid_preferences", message: "Invalid location preferences." }, { status: 400 });
           }
-
           const travelMode = body.travel_mode === true;
           let travelLat: number | null = null;
           let travelLng: number | null = null;
@@ -76,42 +71,28 @@ export const Route = createFileRoute("/api/location")({
             travelLng = body.travel_lng;
           }
 
-          const hideDistance = body.hide_distance === true;
-
-          const coarse = coarseCentroid(coarseLocation, lat, lng);
-
-          // Upsert the location row. The 0005 trigger syncs the geography
-          // columns from these plain doubles — we only ever write lat/lng.
-          await sql()`INSERT INTO locations
-              (user_id, precise_lat, precise_lng, coarse_lat, coarse_lng, coarse_mode,
-               travel_mode, travel_lat, travel_lng)
-            VALUES
-              (${userId}, ${lat}, ${lng}, ${coarse.lat}, ${coarse.lng}, ${coarseLocation},
-               ${travelMode}, ${travelLat}, ${travelLng})
-            ON CONFLICT (user_id) DO UPDATE SET
-              precise_lat = EXCLUDED.precise_lat,
-              precise_lng = EXCLUDED.precise_lng,
-              coarse_lat  = EXCLUDED.coarse_lat,
-              coarse_lng  = EXCLUDED.coarse_lng,
-              coarse_mode = EXCLUDED.coarse_mode,
-              travel_mode = EXCLUDED.travel_mode,
-              travel_lat  = EXCLUDED.travel_lat,
-              travel_lng  = EXCLUDED.travel_lng`;
-
-          // Keep the profile's privacy toggles in sync (coarse_location +
-          // hide_distance). A profile row always exists (created at register).
-          await sql()`INSERT INTO profiles (user_id, coarse_location, hide_distance)
-            VALUES (${userId}, ${coarseLocation}, ${hideDistance})
-            ON CONFLICT (user_id) DO UPDATE SET
-              coarse_location = EXCLUDED.coarse_location,
-              hide_distance   = EXCLUDED.hide_distance`;
-
-          return json({
-            ok: true,
-            coarse_location: coarseLocation,
-            travel_mode: travelMode,
-            hide_distance: hideDistance,
-          });
+          // Update preferences and geometry atomically under the same profile
+          // row lock used by profile edits. Missing preferences stay unchanged.
+          const rows = await sql()`WITH chosen AS (
+            UPDATE profiles SET
+              coarse_location = CASE WHEN ${Object.hasOwn(body, "coarse_location")} THEN ${body.coarse_location ?? "city"}::coarse_location_mode ELSE coarse_location END,
+              hide_distance = CASE WHEN ${Object.hasOwn(body, "hide_distance")} THEN ${body.hide_distance ?? false}::boolean ELSE hide_distance END
+              WHERE user_id = ${userId} RETURNING coarse_location, hide_distance
+          ), saved AS (
+            INSERT INTO locations (user_id, precise_lat, precise_lng, coarse_lat, coarse_lng, coarse_mode, travel_mode, travel_lat, travel_lng)
+            SELECT ${userId}, ${lat}, ${lng},
+              CASE coarse_location WHEN 'exact' THEN round(${lat}::numeric, 6)
+                ELSE round(((floor(${lat}::numeric / CASE coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END) + 0.5) * CASE coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END)::numeric, 6) END,
+              CASE coarse_location WHEN 'exact' THEN round(${lng}::numeric, 6)
+                ELSE round(((floor(${lng}::numeric / CASE coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END) + 0.5) * CASE coarse_location WHEN 'city' THEN 0.1 ELSE 0.5 END)::numeric, 6) END,
+              coarse_location, ${travelMode}, ${travelLat}, ${travelLng} FROM chosen
+            ON CONFLICT (user_id) DO UPDATE SET precise_lat = EXCLUDED.precise_lat, precise_lng = EXCLUDED.precise_lng,
+              coarse_lat = EXCLUDED.coarse_lat, coarse_lng = EXCLUDED.coarse_lng, coarse_mode = EXCLUDED.coarse_mode,
+              travel_mode = EXCLUDED.travel_mode, travel_lat = EXCLUDED.travel_lat, travel_lng = EXCLUDED.travel_lng
+            RETURNING user_id
+          ) SELECT chosen.coarse_location, chosen.hide_distance FROM chosen CROSS JOIN saved`;
+          if (!rows[0]) return json({ error: "not_found", message: "Profile not found." }, { status: 404 });
+          return json({ ok: true, ...rows[0], travel_mode: travelMode });
         } catch (err) {
           return errorResponse(err);
         }

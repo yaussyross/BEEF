@@ -61,3 +61,20 @@ message after that device received containment, but it is not a distributed
 atomic cancellation guarantee. Report idempotency is screen-scoped on the client.
 No photo-specific reporting/review UI or specialized evidence viewer is added.
 No real-user launch follows from this test passing.
+
+
+## October 27 client follow-up
+
+My account → Edit profile now edits display name, bio, intent tags and interests.
+My account → Blocked users supports confirmed unblock without reading blocked
+profiles. Each received message has a specific Report message action; retries
+retain the same target/ID. My account → Synthetic test area sets fictional A/B
+nearby fixtures or Far; it never requests device GPS. Choose A on one synthetic
+account and B on the second, then refresh the grid. Confirm hide-distance remains
+selected after changing area. This test helper is not a finished real-location
+feature and must not be used to claim genuine user proximity.
+
+The default CI APK opens only a no-server setup screen. A connected test APK is
+built with app/build-private-test.sh after the private HTTPS origin and access
+controls are approved. Use only fictional profile/content and example.test
+addresses. Do not invite real users or import waitlist records for this test.

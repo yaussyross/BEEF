@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProfileText } from "~/lib/moderation";
 import { sql } from "~/db";
 import { isUuid, requireAuth } from "~/lib/auth";
 import {
@@ -71,12 +72,14 @@ export const Route = createFileRoute("/api/threads")({
 
           // Pull the other participant's public summary for the response (the
           // same fields the inbox exposes; no birthdate, no location).
-          const other = await sql()`SELECT p.display_name, p.photo_verification_status
+          const other = await sql()`SELECT p.display_name, p.photo_verification_status, EXISTS (SELECT 1 FROM moderation_queue mq WHERE mq.target_type = 'profile'
+                  AND mq.target_id = p.id AND mq.source = 'auto'
+                  AND (mq.status = 'pending' OR (p.moderation_status = 'pending' AND mq.status = 'rejected'))) AS text_review_pending
                                     FROM profiles p
                                     WHERE p.user_id = ${otherUserId}
                                     LIMIT 1`;
           const otherRow = other[0] as
-            | { display_name: string | null; photo_verification_status: string }
+            | { display_name: string | null; photo_verification_status: string; text_review_pending: boolean }
             | undefined;
 
           return json(
@@ -84,7 +87,7 @@ export const Route = createFileRoute("/api/threads")({
               thread: {
                 id: thread.id,
                 other_user_id: otherUserId,
-                other_display_name: otherRow?.display_name ?? null,
+                other_display_name: publicProfileText(otherRow?.display_name ?? null, otherRow?.text_review_pending ?? false),
                 other_photo_verification_status: otherRow?.photo_verification_status ?? "unverified",
                 participant_low: thread.participant_low,
                 participant_high: thread.participant_high,
