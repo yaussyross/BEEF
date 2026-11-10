@@ -177,3 +177,20 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
+
+  database-contracts:
+    name: Database — isolated synthetic migration and constraint tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Fetch official pinned PostGIS test image
+        # Official PostGIS image; no app secrets, host ports or live database.
+        run: docker pull postgis/postgis@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+      - name: Verify migrations, adult/privacy constraints and ratings
+        # Runner uses network=none, tmpfs data, synthetic rollback fixtures and
+        # finally cleanup. It never reads production connection settings.
+        run: python3 db/tests/run_local.py
