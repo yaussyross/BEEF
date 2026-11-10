@@ -189,7 +189,10 @@ void main() {
     addTearDown(chat.dispose);
     socket.emit({'type': 'connected'});
     await chat.openThread(testThread);
-    expect(socket.frames, contains({'type': 'read', 'thread_id': 'thread-a'}));
+    expect(
+      socket.frames,
+      contains(equals({'type': 'read', 'thread_id': 'thread-a'})),
+    );
     expect(api.readThreads, isEmpty);
   });
 }

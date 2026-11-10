@@ -31,7 +31,7 @@ class ChatController extends ChangeNotifier {
   bool _disposed = false, _foreground = true, _connecting = false;
   bool _connected = false, _inboxLoading = false, _historyLoading = false;
   bool _loadingMore = false, _sending = false, _historyReady = false;
-  int _historyGeneration = 0;
+  int _historyGeneration = 0, _blockGeneration = 0;
   String? _inboxError, _historyError;
   List<ChatThread> _threads = [];
   ChatThread? _activeThread;
@@ -39,7 +39,7 @@ class ChatController extends ChangeNotifier {
   final _cursors = <String, String?>{};
   final _historyAnchors = <String, String?>{};
   final _blockedUsers = <String>{};
-  final _blockedThreads = <String>{};
+  final _blockedThreads = <String, String>{};
   final _containedMessages = <String>{};
   final _readRequests = <String>{};
   Completer<ChatMessage>? _ack;
@@ -123,13 +123,19 @@ class ChatController extends ChangeNotifier {
     if (_inboxLoading || _disposed) {
       return;
     }
+    final blockGeneration = _blockGeneration;
     _inboxLoading = true;
     _inboxError = null;
     _notify();
     try {
       final result = await api.inbox();
-      if (_disposed) {
+      if (_disposed || blockGeneration != _blockGeneration) {
         return;
+      }
+      // Inbox authorization excludes both directions of a block. Only a
+      // request started after the latest block change may reconcile recovery.
+      for (final thread in result) {
+        _clearBlock(thread.otherUserId);
       }
       _threads = result
           .where((t) => !_blockedUsers.contains(t.otherUserId))
@@ -387,7 +393,7 @@ class ChatController extends ChangeNotifier {
 
   void _merge(ChatMessage message) {
     if (_containedMessages.contains(message.id)) message = message.contained();
-    if (_blockedThreads.contains(message.threadId)) {
+    if (_blockedThreads.containsKey(message.threadId)) {
       return;
     }
     final list = _history.putIfAbsent(message.threadId, () => []);
@@ -540,10 +546,42 @@ class ChatController extends ChangeNotifier {
   /// Call only after the block API confirms success, including when WS is offline.
   void confirmBlock(String otherUserId) => _invalidate(otherUserId);
 
+  /// Call only after the unblock API confirms success. History stays empty
+  /// until the server authorizes a fresh read; a peer's block still wins there.
+  void confirmUnblock(String otherUserId) {
+    if (_disposed) return;
+    _blockGeneration++;
+    _clearBlock(otherUserId);
+    _notify();
+    unawaited(refreshInbox());
+  }
+
+  void _clearBlock(String otherUserId) {
+    if (!_blockedUsers.remove(otherUserId)) return;
+    final ids = _blockedThreads.entries
+        .where((entry) => entry.value == otherUserId)
+        .map((entry) => entry.key)
+        .toList();
+    for (final id in ids) {
+      _blockedThreads.remove(id);
+      _history.remove(id);
+      _cursors.remove(id);
+      _historyAnchors.remove(id);
+    }
+    if (_activeThread?.otherUserId == otherUserId) {
+      _historyGeneration++;
+      _historyLoading = false;
+      _loadingMore = false;
+      _historyReady = false;
+      _historyError = null;
+    }
+  }
+
   void _invalidate(String otherUserId) {
+    _blockGeneration++;
     _blockedUsers.add(otherUserId);
     for (final thread in _threads.where((t) => t.otherUserId == otherUserId)) {
-      _blockedThreads.add(thread.id);
+      _blockedThreads[thread.id] = otherUserId;
       _history.remove(thread.id);
     }
     if (_activeThread?.otherUserId == otherUserId) {
@@ -551,7 +589,7 @@ class ChatController extends ChangeNotifier {
       _historyLoading = false;
       _loadingMore = false;
       _historyReady = false;
-      _blockedThreads.add(_activeThread!.id);
+      _blockedThreads[_activeThread!.id] = otherUserId;
       _history.remove(_activeThread!.id);
       _historyError = 'This conversation is unavailable.';
     }

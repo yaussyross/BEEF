@@ -14,11 +14,15 @@ class SessionApi extends AuthApi {
   SessionApi(MemoryTokens store)
     : super(ApiClient(baseUrl: 'https://example.invalid', tokenStore: store));
   final loginResult = Completer<AuthResult>();
+  final loginStarted = Completer<void>();
   final profileResult = Completer<Profile>();
   final profileStarted = Completer<void>();
   @override
-  Future<AuthResult> login({required String email, required String password}) =>
-      loginResult.future;
+  Future<AuthResult> login({required String email, required String password}) {
+    loginStarted.complete();
+    return loginResult.future;
+  }
+
   @override
   Future<Profile> me() {
     if (!profileStarted.isCompleted) profileStarted.complete();
@@ -58,6 +62,7 @@ void main() {
       email: 'adult-a@example.invalid',
       password: 'test',
     );
+    await api.loginStarted.future;
     await auth.signOut();
     api.profileResult.complete(const Profile(id: 'adult-a'));
     api.loginResult.complete(session);
@@ -112,11 +117,14 @@ void main() {
       email: 'adult-a@example.invalid',
       password: 'test',
     );
+    await api.loginStarted.future;
     auth.dispose();
     api.profileResult.complete(const Profile(id: 'adult-a'));
     api.loginResult.complete(session);
     await expectLater(login, completes);
-    expect(await store.readAccessToken(), 'test-access');
+    // Starting a new login may clear prior credentials; disposal must never
+    // allow its delayed response to persist the new account's credentials.
+    expect(await store.readAccessToken(), isNot('access-a'));
   });
 
   test('stale restore failure does not sign out a newer login', () async {

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:beef/models/chat_thread.dart';
+import 'package:beef/api/chat_api.dart';
+import 'package:beef/models/chat_message.dart';
 import 'package:beef/chat/chat_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,6 +17,9 @@ class DeferredInboxApi extends FakeChatApi {
 void main() {
   test('fresh authorized inbox recovers peer unblock without restoring stale cache', () async {
     final api = FakeChatApi();
+    api.onHistory = (_, __) async => ChatHistory([
+      ChatMessage.fromJson(messageJson(id: 'fresh-message')),
+    ], null);
     final chat = ChatController(
       api: api,
       userId: 'me',
@@ -31,6 +36,8 @@ void main() {
     await chat.refreshInbox();
     expect(chat.unavailable, isFalse);
     expect(chat.messages, isEmpty);
+    await chat.refreshHistory();
+    expect(chat.messages.single.id, 'fresh-message');
   });
 
   test('inbox started before a block cannot undo the block', () async {

@@ -23,14 +23,13 @@ class ApiException implements Exception {
   /// Human-readable copy straight from the backend (already on-brand).
   final String message;
 
-  factory ApiException.fromResponse(int statusCode, Map<String, dynamic>? body) {
+  factory ApiException.fromResponse(
+    int statusCode,
+    Map<String, dynamic>? body,
+  ) {
     final code = body?['error'] as String? ?? 'unknown_error';
     final message = body?['message'] as String? ?? 'Something went wrong.';
-    return ApiException(
-      statusCode: statusCode,
-      code: code,
-      message: message,
-    );
+    return ApiException(statusCode: statusCode, code: code, message: message);
   }
 
   @override
@@ -55,6 +54,19 @@ class ApiClient {
 
   /// Guards against concurrent refresh storms: only one refresh in flight.
   Future<bool>? _refreshing;
+  int? _refreshingGeneration;
+
+  TokenSession get _session => TokenSession.forStore(tokenStore);
+
+  void _requireCurrent(int generation) {
+    if (!_session.isCurrent(generation)) {
+      throw const ApiException(
+        statusCode: 409,
+        code: 'session_changed',
+        message: 'The signed-in account changed. Please try again.',
+      );
+    }
+  }
 
   Future<Map<String, dynamic>> get(String path, {bool authenticated = true}) =>
       _send('GET', path, authenticated: authenticated);
@@ -63,22 +75,19 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
-  }) =>
-      _send('POST', path, body: body, authenticated: authenticated);
+  }) => _send('POST', path, body: body, authenticated: authenticated);
 
   Future<Map<String, dynamic>> put(
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
-  }) =>
-      _send('PUT', path, body: body, authenticated: authenticated);
+  }) => _send('PUT', path, body: body, authenticated: authenticated);
 
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
-  }) =>
-      _send('DELETE', path, body: body, authenticated: authenticated);
+  }) => _send('DELETE', path, body: body, authenticated: authenticated);
 
   Future<Map<String, dynamic>> _send(
     String method,
@@ -86,23 +95,35 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authenticated = true,
   }) async {
+    final int generation = _session.generation;
+    if (authenticated) {
+      await _session.settled;
+      _requireCurrent(generation);
+    }
     final Uri uri = Uri.parse('$baseUrl$path');
     String? accessToken = authenticated
         ? await tokenStore.readAccessToken()
         : null;
 
+    if (authenticated) _requireCurrent(generation);
     http.Response response = await _perform(method, uri, body, accessToken);
+    if (authenticated) _requireCurrent(generation);
 
     // Refresh once on 401 for protected calls. register/login/refresh are not
     // authenticated and never enter this path, so no recursive refresh.
     if (authenticated && response.statusCode == 401 && accessToken != null) {
-      final bool refreshed = await _refreshTokens();
+      final bool refreshed = await _refreshTokens(generation);
+      _requireCurrent(generation);
       if (refreshed) {
+        await _session.settled;
+        _requireCurrent(generation);
         accessToken = await tokenStore.readAccessToken();
+        _requireCurrent(generation);
         response = await _perform(method, uri, body, accessToken);
       }
     }
 
+    if (authenticated) _requireCurrent(generation);
     return _decode(response);
   }
 
@@ -139,23 +160,33 @@ class ApiClient {
   /// Rotate the token pair using the stored refresh token. Returns true when a
   /// new pair was persisted. Clears tokens on failure so callers can route the
   /// user back to login.
-  Future<bool> _refreshTokens() async {
+  Future<bool> _refreshTokens(int generation) async {
     final Future<bool>? inFlight = _refreshing;
-    if (inFlight != null) return inFlight;
+    if (inFlight != null && _refreshingGeneration == generation) {
+      return inFlight;
+    }
 
-    final Future<bool> future = _doRefresh();
+    final Future<bool> future = _doRefresh(generation);
     _refreshing = future;
+    _refreshingGeneration = generation;
     try {
       return await future;
     } finally {
-      _refreshing = null;
+      // An old account's completion must not erase a newer refresh guard.
+      if (identical(_refreshing, future)) {
+        _refreshing = null;
+        _refreshingGeneration = null;
+      }
     }
   }
 
-  Future<bool> _doRefresh() async {
+  Future<bool> _doRefresh(int generation) async {
+    await _session.settled;
+    if (!_session.isCurrent(generation)) return false;
     final String? refreshToken = await tokenStore.readRefreshToken();
+    if (!_session.isCurrent(generation)) return false;
     if (refreshToken == null || refreshToken.isEmpty) {
-      await tokenStore.clear();
+      await _session.mutate(generation, tokenStore.clear);
       return false;
     }
 
@@ -167,28 +198,31 @@ class ApiClient {
         <String, dynamic>{'refreshToken': refreshToken},
         null,
       );
+      if (!_session.isCurrent(generation)) return false;
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        await tokenStore.clear();
+        await _session.mutate(generation, tokenStore.clear);
         return false;
       }
       final dynamic decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) {
-        await tokenStore.clear();
+        await _session.mutate(generation, tokenStore.clear);
         return false;
       }
       final String? newAccess = decoded['accessToken'] as String?;
       final String? newRefresh = decoded['refreshToken'] as String?;
       if (newAccess == null || newRefresh == null) {
-        await tokenStore.clear();
+        await _session.mutate(generation, tokenStore.clear);
         return false;
       }
-      await tokenStore.writeTokens(
-        accessToken: newAccess,
-        refreshToken: newRefresh,
+      return await _session.mutate(
+        generation,
+        () => tokenStore.writeTokens(
+          accessToken: newAccess,
+          refreshToken: newRefresh,
+        ),
       );
-      return true;
     } catch (_) {
-      await tokenStore.clear();
+      await _session.mutate(generation, tokenStore.clear);
       return false;
     }
   }
