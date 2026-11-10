@@ -14,7 +14,7 @@ import 'package:http/testing.dart';
 import 'chat_test_helpers.dart';
 
 class NewSessionApi extends AuthApi {
-  NewSessionApi(ApiClient client) : super(client);
+  NewSessionApi(super.client);
   @override
   Future<AuthResult> login({
     required String email,
