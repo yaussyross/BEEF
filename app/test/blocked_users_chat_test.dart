@@ -29,7 +29,7 @@ void main() {
           baseUrl: 'https://example.test',
           tokenStore: MemoryTokens(),
           httpClient: MockClient((request) async {
-            if (request.method == 'GET')
+            if (request.method == 'GET') {
               return http.Response(
                 jsonEncode({
                   'users': [
@@ -38,6 +38,7 @@ void main() {
                 }),
                 200,
               );
+            }
             return http.Response(
               jsonEncode({'ok': succeeds, 'blocked': !succeeds}),
               200,
