@@ -17,13 +17,16 @@ void main() {
     testWidgets(
       'unblock ${succeeds ? "success reconciles" : "failure preserves"} chat block',
       (tester) async {
+        final chatApi = FakeChatApi();
         final chat = ChatController(
-          api: FakeChatApi(),
+          api: chatApi,
           userId: 'me',
           socket: FakeChatSocket(),
         );
         addTearDown(chat.dispose);
         await chat.openThread(testThread);
+        // The real inbox excludes peers blocked in either direction.
+        chatApi.threads = [];
         chat.confirmBlock('other');
         final client = ApiClient(
           baseUrl: 'https://example.test',
@@ -39,6 +42,7 @@ void main() {
                 200,
               );
             }
+            if (succeeds) chatApi.threads = [testThread];
             return http.Response(
               jsonEncode({'ok': succeeds, 'blocked': !succeeds}),
               200,
@@ -57,7 +61,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Unblock'));
         await tester.pumpAndSettle();
+        expect(chat.unavailable, isTrue);
         await tester.tap(find.text('Confirm unblock'));
+        await tester.pumpAndSettle();
+        await chat.refreshInbox();
         await tester.pumpAndSettle();
         expect(chat.unavailable, !succeeds);
         expect(
