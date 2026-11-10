@@ -41,6 +41,7 @@ class ChatController extends ChangeNotifier {
   final _blockedUsers = <String>{};
   final _blockedThreads = <String>{};
   final _containedMessages = <String>{};
+  final _readRequests = <String>{};
   Completer<ChatMessage>? _ack;
   String? _ackClientId;
 
@@ -407,10 +408,15 @@ class ChatController extends ChangeNotifier {
   ChatThread _scrubThread(ChatThread thread) {
     final last = thread.lastMessage;
     if (last == null || !_containedMessages.contains(last.id)) return thread;
-    return ChatThread(id: thread.id, otherUserId: thread.otherUserId,
-      displayName: thread.displayName, photoVerificationStatus: thread.photoVerificationStatus,
-      lastMessage: last.contained(), unreadCount: thread.unreadCount,
-      lastMessageAt: thread.lastMessageAt);
+    return ChatThread(
+      id: thread.id,
+      otherUserId: thread.otherUserId,
+      displayName: thread.displayName,
+      photoVerificationStatus: thread.photoVerificationStatus,
+      lastMessage: last.contained(),
+      unreadCount: thread.unreadCount,
+      lastMessageAt: thread.lastMessageAt,
+    );
   }
 
   void _onEvent(Map<String, dynamic> event) {
@@ -448,7 +454,9 @@ class ChatController extends ChangeNotifier {
           final messageId = event['message_id'] as String;
           _containedMessages.add(messageId);
           for (final key in _history.keys.toList()) {
-            _history[key] = _history[key]!.map((m) => m.id == messageId ? m.contained() : m).toList();
+            _history[key] = _history[key]!
+                .map((m) => m.id == messageId ? m.contained() : m)
+                .toList();
           }
           _threads = _threads.map(_scrubThread).toList();
           break;
@@ -488,12 +496,44 @@ class ChatController extends ChangeNotifier {
   }
 
   void _markRead() {
-    if (_connected &&
-        _foreground &&
-        _historyReady &&
-        _activeThread != null &&
-        !unavailable) {
-      socket.send({'type': 'read', 'thread_id': _activeThread!.id});
+    final thread = _activeThread;
+    if (_disposed ||
+        !_foreground ||
+        !_historyReady ||
+        thread == null ||
+        unavailable) {
+      return;
+    }
+    if (_connected) {
+      try {
+        socket.send({'type': 'read', 'thread_id': thread.id});
+        return;
+      } catch (_) {
+        // A socket can close between hydration and sending the read frame.
+        // REST enforces the same participant and account rules.
+      }
+    }
+    unawaited(_markReadOverHttp(thread));
+  }
+
+  Future<void> _markReadOverHttp(ChatThread thread) async {
+    if (!_readRequests.add(thread.id)) return;
+    final generation = _historyGeneration;
+    try {
+      await api.markRead(thread.id);
+      if (!_disposed && _foreground) await refreshInbox();
+    } catch (error) {
+      if (_disposed) return;
+      _describe(error);
+      if (error is ApiException &&
+          ['blocked', 'thread_not_found'].contains(error.code) &&
+          generation == _historyGeneration) {
+        _invalidate(thread.otherUserId);
+      }
+      // Transient failures retry on the next successful history refresh.
+      // They must not hide loaded messages or fail an outgoing send.
+    } finally {
+      _readRequests.remove(thread.id);
     }
   }
 

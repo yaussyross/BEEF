@@ -192,3 +192,11 @@ starts a new submission; durable cross-restart recovery is not implemented.
 Two additional tests cover UUID shape/uniqueness and malformed-response retries;
 the existing offline retry test also checks identical keys and locked details.
 These Flutter tests remain NOT RUN in this SDK-less environment.
+
+### Chat read fallback
+
+Foreground history hydration can acknowledge read state through authenticated
+`POST /api/threads/:id/read` when WebSocket is unavailable. Reads coalesce per
+thread and transient failures retry on the next successful history refresh.
+See `test/chat_read_fallback_test.dart` and
+`../docs/CHAT-READ-FALLBACK-2026-11-08.md`.

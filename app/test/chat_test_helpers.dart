@@ -77,6 +77,14 @@ class FakeChatApi extends ChatApi {
   Future<ChatMessage> Function(String, String, String)? onSend;
   final sentIds = <String>[];
   int inboxCalls = 0;
+  final readThreads = <String>[];
+  Future<void> Function(String)? onRead;
+  @override
+  Future<void> markRead(String threadId) async {
+    readThreads.add(threadId);
+    await onRead?.call(threadId);
+  }
+
   @override
   Future<List<ChatThread>> inbox() async {
     inboxCalls++;

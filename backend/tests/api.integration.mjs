@@ -307,6 +307,12 @@ try {
   const history = await api(`/api/threads/${ab}/messages`, { token: b.token });
   assert.equal(history.messages.length, 1);
   publicPayload(history);
+  assert.equal((await api('/api/threads', { token: b.token })).threads.find(t => t.id === ab).unread_count, 1);
+  await api(`/api/threads/${ab}/read`, { token: c.token, method: 'POST', status: 404 });
+  await api(`/api/threads/${ab}/read`, { token: b.token, method: 'POST' });
+  await api(`/api/threads/${ab}/read`, { token: b.token, method: 'POST' });
+  assert.equal((await api('/api/threads', { token: b.token })).threads.find(t => t.id === ab).unread_count, 0);
+  console.log('PASS authenticated REST read fallback clears unread count and rejects nonparticipants');
   await api(`/api/threads/${ab}/messages`, { token: a.token, method: 'POST', status: 201,
     body: { client_message_id: 'rest-two', body: 'Second message' } });
   const page = await api(`/api/threads/${ab}/messages?limit=1`, { token: b.token });

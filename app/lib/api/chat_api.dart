@@ -45,6 +45,12 @@ class ChatApi {
     );
   }
 
+  Future<void> markRead(String threadId) async {
+    await client
+        .post('/api/threads/${Uri.encodeComponent(threadId)}/read', body: {})
+        .timeout(const Duration(seconds: 20));
+  }
+
   Future<ChatMessage> send(
     String threadId,
     String clientId,

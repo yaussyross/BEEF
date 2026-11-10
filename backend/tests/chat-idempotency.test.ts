@@ -281,3 +281,36 @@ test('rating rejects fractional, out-of-range and coerced input', () => {
   }
   for (const value of [1, 2, 3, 4, 5]) expect(() => validateStars(value)).not.toThrow();
 });
+
+const { Route: readRoute } = await import('../src/routes/api/threads.$id.read');
+const readHandler = (readRoute.options as any).server.handlers.POST;
+function readRequest() {
+  return new Request('http://localhost/api/threads/current-thread/read', {
+    method: 'POST', headers: { authorization: `Bearer ${token}` },
+  });
+}
+test('REST read fallback authenticates, checks membership and updates read state', async () => {
+  results = [active, active, thread, [{ x: 1 }], [], []];
+  const response = await readHandler({ request: readRequest(), params: { id: 'current-thread' } });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ ok: true });
+  expect(queries.at(-1)).toContain('UPDATE thread_participants');
+});
+test('REST read fallback cannot mark a nonparticipant thread', async () => {
+  results = [active, active, []];
+  const response = await readHandler({ request: readRequest(), params: { id: 'current-thread' } });
+  expect(response.status).toBe(404);
+  expect(queries.some(q => q.includes('UPDATE thread_participants'))).toBe(false);
+});
+test('REST read fallback enforces blocks in either direction', async () => {
+  results = [active, active, thread, [{ x: 1 }], [{ x: 1 }]];
+  const response = await readHandler({ request: readRequest(), params: { id: 'current-thread' } });
+  expect(response.status).toBe(403);
+  expect(queries.some(q => q.includes('UPDATE thread_participants'))).toBe(false);
+});
+test('REST read fallback rejects disabled sessions before updating state', async () => {
+  results = [[{ status: 'suspended' }]];
+  const response = await readHandler({ request: readRequest(), params: { id: 'current-thread' } });
+  expect(response.status).toBe(403);
+  expect(queries.some(q => q.includes('UPDATE thread_participants'))).toBe(false);
+});
