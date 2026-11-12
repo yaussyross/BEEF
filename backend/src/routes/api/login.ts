@@ -1,3 +1,4 @@
+import { loginThrottle } from "~/lib/login-throttle";
 import { requireAllowedTestEmail } from "~/lib/closed-test";
 import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
@@ -21,6 +22,12 @@ export const Route = createFileRoute("/api/login")({
         }
         const email = normalizeEmail(typeof body.email === "string" ? body.email : "");
         const password = typeof body.password === "string" ? body.password : "";
+
+        const retryAfter = loginThrottle(email);
+        if (retryAfter) {
+          return json({ error: "rate_limited", message: "Please wait before trying again." },
+            { status: 429, headers: { "Retry-After": String(retryAfter) } });
+        }
 
         if (!email || !password) {
           return json(

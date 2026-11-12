@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/auth_api.dart';
+import '../api/http_client.dart';
 import '../api/token_store.dart';
 import '../models/profile.dart';
 import '../models/user.dart';
@@ -50,9 +51,11 @@ class AuthController extends ChangeNotifier {
       _user = User(id: profile.id, email: profile.email ?? '');
       _status = AuthStatus.authenticated;
       notifyListeners();
-    } catch (_) {
+    } catch (error) {
       if (!_current(generation)) return;
-      await _session.mutate(generation, tokenStore.clear);
+      if (error is ApiException && (error.statusCode == 401 || error.statusCode == 403)) {
+        await _session.mutate(generation, tokenStore.clear);
+      }
       if (!_current(generation)) return;
       _setUnauthenticated();
       notifyListeners();

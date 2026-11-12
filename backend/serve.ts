@@ -1,3 +1,4 @@
+import { MAX_JSON_BYTES } from "./src/lib/http";
 import { closeNativeDatabases } from "./src/native-db";
 // Persistent HTTP + WebSocket service. Build first. TLS belongs to the proxy.
 // No port takeover, sudo, automatic migrations or deployment on startup.
@@ -10,7 +11,7 @@ import { hub } from './src/ws/registry';
 const config = serverConfig(process.env);
 const runtime = createRuntime({ handler, clientDir: `${import.meta.dir}/dist/client`,
   readinessTimeoutMs: config.readinessTimeoutMs });
-const server = Bun.serve({ hostname: config.host, port: config.port,
+const server = Bun.serve({ maxRequestBodySize: MAX_JSON_BYTES, hostname: config.host, port: config.port,
   websocket: chatWebSocketHandlers, fetch: runtime.fetch });
 console.log(`BEEF listening on ${config.host}:${server.port}`);
 

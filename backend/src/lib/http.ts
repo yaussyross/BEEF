@@ -20,18 +20,36 @@ export function json(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-/** Parse a JSON request body, returning null when absent/invalid. */
+export const MAX_JSON_BYTES = 64 * 1024;
+
+/** Bound streamed bytes even when Content-Length is missing or dishonest. */
 export async function readJson(request: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const text = await request.text();
-    if (!text) return null;
-    const parsed: unknown = JSON.parse(text);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
+  const length = request.headers.get("content-length");
+  if (length !== null && (!/^\d+$/.test(length) || Number(length) > MAX_JSON_BYTES)) {
+    try { await request.body?.cancel(); } catch { /* already closed */ }
     return null;
   }
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytes = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_JSON_BYTES) { await reader.cancel(); return null; }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    const parsed: unknown = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown> : null;
+  } catch {
+    try { await reader.cancel(); } catch { /* already closed */ }
+    return null;
+  } finally { reader.releaseLock(); }
 }
 
 /** Turn a thrown error into a JSON response (AuthError carries status/code). */
