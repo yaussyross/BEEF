@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/moderation/review")({
           return json({ error: "invalid_body", message: "Expected a JSON body." }, { status: 400 });
         }
         try {
-          requireModerationAdmin(request);
+          await requireModerationAdmin(request);
 
           const queueId = body.queue_id;
           if (!isUuid(queueId)) {

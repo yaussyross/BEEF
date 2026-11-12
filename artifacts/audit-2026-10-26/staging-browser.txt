@@ -1,0 +1,6 @@
+PASS anchor and empty-email validation
+PASS loading, duplicate-submit guard, network failure and retained input
+PASS server validation error
+PASS retry and confirmed success UI (mock receipt; database tested separately)
+PASS storage failure recovers without false success
+PASS responsive widths, keyboard focus and reduced motion

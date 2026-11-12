@@ -48,15 +48,18 @@ enum DiscoveryStatus { idle, loading, loaded, empty, error }
 /// filtering (incl. the "A Plate of Mates" friends-only lane), pull-to-refresh,
 /// pagination, and client-side interest narrowing ("The Menu").
 ///
-/// Interest narrowing is deliberately client-side: the backend grid response
-/// carries a per-row `shared_interests` overlap count, so selecting an
-/// interest re-sorts loaded rows (shared-first) rather than issuing a new
-/// server query. The backend exposes no `interest` query param on
-/// `GET /api/grid` — only `limit`, `offset`, `radius_mi`, and `intent`.
+/// Selected interest slugs filter on the server. A request generation prevents
+/// stale responses from replacing a newer selection.
 class DiscoveryController extends ChangeNotifier {
   DiscoveryController({required this.api});
 
   final DiscoveryApi api;
+
+  int _generation = 0;
+  bool _disposed = false;
+
+  @override
+  void dispose() { _disposed = true; _generation++; api.close(); super.dispose(); }
 
   DiscoveryStatus _status = DiscoveryStatus.idle;
   List<GridProfile> _items = const <GridProfile>[];
@@ -77,7 +80,7 @@ class DiscoveryController extends ChangeNotifier {
   Set<String> _selectedInterests = <String>{};
 
   DiscoveryStatus get status => _status;
-  List<GridProfile> get items => _visibleItems();
+  List<GridProfile> get items => List<GridProfile>.unmodifiable(_items);
   List<GridProfile> get rawItems => List<GridProfile>.unmodifiable(_items);
   String? get error => _error;
   bool get hasMore => _hasMore;
@@ -107,8 +110,8 @@ class DiscoveryController extends ChangeNotifier {
     await refresh();
   }
 
-  /// Toggle an interest chip. Client-side re-sort; fetched rows stay put.
-  void toggleInterest(String slug) {
+  /// Toggle an interest chip and fetch matching profiles.
+  Future<void> toggleInterest(String slug) async {
     final Set<String> next = Set<String>.from(_selectedInterests);
     if (next.contains(slug)) {
       next.remove(slug);
@@ -116,13 +119,13 @@ class DiscoveryController extends ChangeNotifier {
       next.add(slug);
     }
     _selectedInterests = next;
-    notifyListeners();
+    await refresh();
   }
 
-  void clearInterestFilter() {
+  Future<void> clearInterestFilter() async {
     if (_selectedInterests.isEmpty) return;
     _selectedInterests = <String>{};
-    notifyListeners();
+    await refresh();
   }
 
   Future<void> clearAllFilters() async {
@@ -134,16 +137,20 @@ class DiscoveryController extends ChangeNotifier {
 
   /// First page (also used for pull-to-refresh).
   Future<void> refresh() async {
+    final generation = ++_generation;
+    _items = []; _hasMore = false; _nextOffset = null;
     _status = _items.isEmpty ? DiscoveryStatus.loading : _status;
     _error = null;
     notifyListeners();
     try {
-      final GridPage page = await api.grid(intent: _intent);
+      final GridPage page = await api.grid(intent: _intent, interests: _selectedInterests);
+      if (_disposed || generation != _generation) return;
       _items = page.items;
       _hasMore = page.hasMore;
       _nextOffset = page.nextOffset;
       _status = _items.isEmpty ? DiscoveryStatus.empty : DiscoveryStatus.loaded;
     } catch (e) {
+      if (_disposed || generation != _generation) return;
       _error = _friendlyError(e);
       _status = _items.isEmpty ? DiscoveryStatus.error : DiscoveryStatus.loaded;
     }
@@ -153,11 +160,13 @@ class DiscoveryController extends ChangeNotifier {
   /// Next page via the server's `next_offset` cursor.
   Future<void> loadMore() async {
     if (!_hasMore || _loadingMore || _nextOffset == null) return;
+    final generation = _generation;
     _loadingMore = true;
     notifyListeners();
     try {
       final GridPage page =
-          await api.grid(intent: _intent, offset: _nextOffset!);
+          await api.grid(intent: _intent, interests: _selectedInterests, offset: _nextOffset!);
+      if (_disposed || generation != _generation) return;
       _items = <GridProfile>[..._items, ...page.items];
       _hasMore = page.hasMore;
       _nextOffset = page.nextOffset;
@@ -168,24 +177,8 @@ class DiscoveryController extends ChangeNotifier {
       // Keep the loaded rows; a retry happens on next scroll or refresh.
     } finally {
       _loadingMore = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
-  }
-
-  /// Client-side interest narrowing: when interests are selected, rows with a
-  /// shared-interest overlap float to the top (stable otherwise). The backend
-  /// ranks by freshness + overlap already; this just sharpens the lane.
-  List<GridProfile> _visibleItems() {
-    if (_selectedInterests.isEmpty) {
-      return List<GridProfile>.unmodifiable(_items);
-    }
-    final List<GridProfile> sorted = List<GridProfile>.from(_items);
-    sorted.sort((GridProfile a, GridProfile b) {
-      final int overlap = b.sharedInterests.compareTo(a.sharedInterests);
-      if (overlap != 0) return overlap;
-      return 0;
-    });
-    return List<GridProfile>.unmodifiable(sorted);
   }
 
   static String _friendlyError(Object e) => e.toString();

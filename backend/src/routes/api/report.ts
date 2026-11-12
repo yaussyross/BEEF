@@ -3,23 +3,20 @@ import { sql } from "~/db";
 import { isUuid, requireAuth } from "~/lib/auth";
 import { otherParticipant } from "~/lib/chat";
 import { errorResponse, json, readJson } from "~/lib/http";
-import {
-  disableAccountForCsam,
-  preserveEvidence,
-  submitNcmecReport,
-} from "~/lib/ncmec";
+import { notifyContentContained } from "~/ws/registry";
 
 /**
  * /api/report  (protected)
  *
- * Report intake. Writes to `reports` and enqueues a `moderation_queue` row so
- * the (later-phase) moderation pipeline has a single place to consume. This is
- * the ONLY thing this route does — it does NOT run the AI/vision classifier and
- * it does NOT submit to NCMEC. Those are wired in a later phase at the marker
- * below.
+ * Report intake. Atomically records a report, review queue entry and existing
+ * severe-report evidence and specific-message containment effects. Replays return the original receipt without
+ * repeating those effects. No AI classifier or external NCMEC transmission runs.
+ * Account/thread-only allegations queue urgent review without account suspension.
+ * Specialized review/release and external escalation remain operational gates.
  *
  * Body:
  *   {
+ *     client_report_id: uuid,    // stable per submission, reused on retries
  *     report_type: 'harassment' | 'impersonation' | 'underage'
  *                | 'commercial_solicitation' | 'explicit_content' | 'csam' | 'other',
  *     reason?: string,
@@ -44,6 +41,11 @@ export const Route = createFileRoute("/api/report")({
         try {
           const userId = await requireAuth(request);
 
+          const clientReportId = body.client_report_id;
+          if (!isUuid(clientReportId)) {
+            return json({ error: "invalid_report_id", message: "A stable client_report_id UUID is required." }, { status: 400 });
+          }
+
           const reportType = body.report_type;
           if (typeof reportType !== "string" || !REPORT_TYPES.includes(reportType)) {
             return json(
@@ -57,6 +59,22 @@ export const Route = createFileRoute("/api/report")({
 
           const reason =
             typeof body.reason === "string" ? body.reason.trim().slice(0, 1000) : null;
+
+          const isCsam = body.is_csam === true || reportType === "csam";
+          // Hash effective request fields, not client identity or a resolved target
+          // which could change after deletion. No additional copy of report text.
+          const canonical = JSON.stringify({ report_type: reportType, reason, is_csam: isCsam,
+            reported_user_id: isUuid(body.reported_user_id) ? body.reported_user_id.toLowerCase() : null,
+            message_id: isUuid(body.message_id) ? body.message_id.toLowerCase() : null,
+            thread_id: isUuid(body.thread_id) ? body.thread_id.toLowerCase() : null });
+          const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+          const requestHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+          const existing = await sql()`SELECT id, request_hash, is_csam FROM reports
+            WHERE reporter_id = ${userId} AND client_report_id = ${clientReportId}`;
+          if (existing[0]) {
+            if (existing[0].request_hash !== requestHash) return conflict();
+            return receipt(String(existing[0].id), existing[0].is_csam === true);
+          }
 
           // Resolve the report target (who is being reported and, for
           // message/thread reports, which thread/message).
@@ -75,62 +93,24 @@ export const Route = createFileRoute("/api/report")({
             return json({ error: "self_report", message: "You can't report yourself." }, { status: 400 });
           }
 
-          // CSAM flag: explicit is_csam=true, or report_type 'csam'. In the live
-          // pipeline this routes to evidence preservation + NCMEC CyberTipline.
-          const isCsam = body.is_csam === true || reportType === "csam";
-
-          const reportRows = await sql()`INSERT INTO reports
-              (reporter_id, reported_user_id, thread_id, message_id, report_type, reason,
-               is_csam, ncmec_status, status)
-            VALUES
-              (${userId}, ${resolved.reportedUserId}, ${resolved.threadId ?? null},
-               ${resolved.messageId ?? null}, ${reportType}, ${reason},
-               ${isCsam}, ${isCsam ? "pending_submission" : null}, 'open')
-            RETURNING id, reported_user_id, message_id`;
-
-          const report = reportRows[0] as
-            | { id: string; reported_user_id: string | null; message_id: string | null }
-            | undefined;
-          if (!report) {
-            return json({ error: "report_failed", message: "Could not record the report." }, { status: 500 });
+          // A single PostgreSQL call commits the report, queue, evidence and
+          // approved specific-message containment together. Unique reporter/key scope also
+          // serializes concurrent retries; a rollback leaves no partial claim.
+          const rows = await sql()`SELECT * FROM submit_report_once(
+            ${userId}::uuid, ${clientReportId}::uuid, ${requestHash}::text,
+            ${resolved.reportedUserId}::uuid, ${resolved.threadId}::uuid,
+            ${resolved.messageId}::uuid, ${resolved.profileId}::uuid,
+            ${reportType}::report_type, ${reason}::text, ${isCsam}::boolean)`;
+          const saved = rows[0];
+          if (!saved) throw new Error("Report transaction returned no receipt");
+          if (saved.created && isCsam && resolved.messageId && resolved.threadId) {
+            // Metadata only: clear connected clients' cached copy; no content,
+            // imagery, reporter identity or external notification is emitted.
+            notifyContentContained([userId, resolved.reportedUserId], resolved.messageId, resolved.threadId);
           }
-
-          // Enqueue for review. A message report targets the message; otherwise
-          // it targets the reported user's profile.
-          const targetType = report.message_id ? "message" : "profile";
-          const targetId = report.message_id ?? resolved.profileId;
-          await sql()`INSERT INTO moderation_queue (target_type, target_id, source, reason, status)
-                       VALUES (${targetType}, ${targetId}, 'user_report', ${reason}, 'pending')`;
-
-          // ─────────────────────────────────────────────────────────────────────
-          // CSAM → NCMEC CyberTipline flow (live before launch). The report insert
-          // already set reports.ncmec_status = 'pending_submission'. Here we (1)
-          // preserve evidence so a deleting source can't destroy it, (2) freeze
-          // the reported account, and (3) queue the submission. The submission
-          // itself is a STUB (src/lib/ncmec.ts) — no credentials yet, and it must
-          // be human-reviewed before anything is transmitted.
-          // ─────────────────────────────────────────────────────────────────────
-          if (isCsam && report.reported_user_id) {
-            const messageBody = report.message_id ? await messageBodyFor(report.message_id) : null;
-            await preserveEvidence(report.id, {
-              messageBody,
-              reason,
-              reportedUserId: report.reported_user_id,
-            });
-            await disableAccountForCsam(report.reported_user_id);
-            await submitNcmecReport(report.id);
-          }
-
-          return json(
-            {
-              ok: true,
-              report_id: report.id,
-              moderation_queued: true,
-              is_csam: isCsam,
-            },
-            { status: 201 }
-          );
+          return receipt(String(saved.report_id), isCsam);
         } catch (err) {
+          if ((err as { constraint?: string })?.constraint === "report_request_conflict") return conflict();
           return errorResponse(err);
         }
       },
@@ -226,9 +206,9 @@ async function profileIdFor(userId: string): Promise<string> {
   return row?.id ?? userId;
 }
 
-/** Fetch a message body for evidence preservation (returns null if gone). */
-async function messageBodyFor(messageId: string): Promise<string | null> {
-  const rows = await sql()`SELECT body FROM chat_messages WHERE id = ${messageId} LIMIT 1`;
-  const row = rows[0] as { body: string } | undefined;
-  return row?.body ?? null;
+function conflict() {
+  return json({ error: "report_id_conflict", message: "This report ID was already used for different details." }, { status: 409 });
+}
+function receipt(reportId: string, isCsam: boolean) {
+  return json({ ok: true, report_id: reportId, moderation_queued: true, is_csam: isCsam }, { status: 201 });
 }

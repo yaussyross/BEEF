@@ -37,7 +37,8 @@ class GridProfile {
 
   final String? lastActiveAt;
 
-  bool get isVerified => photoVerificationStatus == 'verified';
+  // No supported verification process exists; legacy wire labels are not proof.
+  bool get isVerified => false;
 
   /// "nearby" means the remote hid their distance — display it, don't explain
   /// it away or try to resolve it.

@@ -1,5 +1,8 @@
 import { hash, compare } from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
+import { sql } from "../db";
+import { AccessGateError, requireAllowedTestEmail } from "./closed-test";
+import { dropSocketsForUser } from "../ws/registry";
 
 /**
  * BEEF — auth primitives (server-only).
@@ -160,7 +163,28 @@ export async function requireAuth(request: Request): Promise<string> {
   if (!match) {
     throw new AuthError(401, "missing_token", "Missing Authorization: Bearer <token> header.");
   }
-  return verifyAccessToken(match[1].trim());
+  const userId = await verifyAccessToken(match[1].trim());
+  await requireActiveAccount(userId);
+  return userId;
+}
+
+/** No cached status: existing tokens cannot bypass suspension or deletion. */
+export async function requireActiveAccount(userId: string): Promise<void> {
+  try {
+    const rows = await sql()`SELECT status, email::text AS email FROM users WHERE id = ${userId} LIMIT 1`;
+    const account = rows[0] as { status: string; email: string } | undefined;
+    if (!account) throw new AuthError(401, "invalid_token", "Account no longer exists.");
+    requireAllowedTestEmail(account.email);
+    if (account.status !== "active") {
+      throw new AuthError(403, "account_disabled", "This account is not active.");
+    }
+  } catch (error) {
+    dropSocketsForUser(userId);
+    if (error instanceof AuthError) throw error;
+    if (error instanceof AccessGateError) throw new AuthError(error.status, error.code, error.message);
+    // A failed lookup is never evidence that access should be allowed.
+    throw new AuthError(503, "account_unavailable", "Account access could not be verified. Try again later.");
+  }
 }
 
 /** Normalize an email for storage/lookup (trim + lowercase). */

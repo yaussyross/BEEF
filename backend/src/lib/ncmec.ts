@@ -1,28 +1,11 @@
 import { sql } from "~/db";
 
 /**
- * BEEF — NCMEC CyberTipline flow (CSAM). Server-only.
- *
- * Legal requirement, live BEFORE launch: when a report flags CSAM
- * (`reports.is_csam = true`), BEEF must preserve evidence, disable the reported
- * account, and submit to the NCMEC CyberTipline. Submission is human-reviewed
- * and requires credentials the owner has not yet provided, so this module is a
- * STUB today:
- *
- *   - `preserveEvidence()` snapshots the offending content (message body, report
- *     reason, reported user id) into `report_evidence` with a sha256 hash for
- *     chain-of-custody, so the source being deleted can't destroy the evidence.
- *   - `disableAccountForCsam()` freezes the reported account (status
- *     'suspended') and its profile (moderation_status 'suspended') — out of the
- *     grid, not yet banned; a human makes the final call.
- *   - `submitNcmecReport()` LOGS + returns `transmitted: false`. It does NOT
- *     transmit. Replace it with the real CyberTipline API call pre-launch.
- *
- * TODO(pre-launch): integrate the real NCMEC CyberTipline submission
- * (https://report.cybertip.org) — human-reviewed, with an `ncmec_status`
- * transition pending_submission → submitted → acknowledged, and store the
- * CyberTipline report id in `reports.ncmec_report_id`. Requires owner-supplied
- * NCMEC credentials (not yet available).
+ * Restricted evidence helpers and a NONTRANSMITTING external-reporting stub.
+ * Report intake atomically preserves evidence and contains identified messages
+ * through migration 0011. An accusation does not suspend an account. Ross is
+ * the intended human reviewer; specialized access, decisions and escalation
+ * procedures remain unspecified. This module grants none and sends no reports.
  */
 
 export interface NcmecSubmissionResult {
@@ -62,12 +45,6 @@ export async function preserveEvidence(reportId: string, evidence: EvidenceSnaps
     await sql()`INSERT INTO report_evidence (report_id, kind, content_hash, payload)
                VALUES (${reportId}, ${part.kind}, ${contentHash}, ${part.payload})`;
   }
-}
-
-/** Freeze the reported account (suspended, not banned) pending human/NCMEC review. */
-export async function disableAccountForCsam(userId: string): Promise<void> {
-  await sql()`UPDATE users SET status = 'suspended' WHERE id = ${userId}`;
-  await sql()`UPDATE profiles SET moderation_status = 'suspended' WHERE user_id = ${userId}`;
 }
 
 /**

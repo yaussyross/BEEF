@@ -1,0 +1,14 @@
+PASS fresh migrated PostgreSQL reachable through real Neon HTTP driver
+PASS auth registration/login/refresh, token audience, unauthenticated and underage rejection
+PASS intent-array decoding, grid distance buckets and public payload privacy
+PASS real WebSocket send/ack/delivery/read and REST history/idempotency/privacy/participant guards
+PASS ratings enforce mutual 299/300/301-second boundaries, reject timing/identity/input abuse and replace concurrent re-ratings
+PASS in-chat report accepts a participant and rejects outsiders
+PASS REST block closes sockets across bundled modules and prevents both directions of access
+[ncmec] STUB: queued CyberTipline submission for report 134ab692-2193-4768-9bef-05bb58ea4929 (no credentials — human review required before launch).
+PASS synthetic report suspension closes sockets and rejects existing tokens/refresh/upgrade/chat
+PASS human moderation ban revokes existing socket and HTTP session
+PASS direct status change is enforced on an existing socket next action and HTTP request
+PASS transport outage fails closed on active socket, HTTP and upgrade; recovery restores access
+PASS all persisted accounts are synthetic fixtures
+Removed disposable proxy, PostgreSQL data and private network.

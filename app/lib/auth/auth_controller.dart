@@ -3,19 +3,23 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/auth_api.dart';
+import '../api/http_client.dart';
 import '../api/token_store.dart';
 import '../models/profile.dart';
 import '../models/user.dart';
 
 enum AuthStatus { unknown, unauthenticated, authenticated }
 
-/// Single source of truth for the signed-in state. Rebuilds listeners on every
-/// transition; the UI reads it through `AuthScope`.
+/// Single source of truth for signed-in state. Stale network completions cannot
+/// restore a signed-out session or publish a previous account's private profile.
 class AuthController extends ChangeNotifier {
-  AuthController({required this.api, required this.tokenStore});
+  AuthController({required this.api, required this.tokenStore})
+    : _session = TokenSession.forStore(tokenStore);
 
   final AuthApi api;
   final TokenStore tokenStore;
+  final TokenSession _session;
+  bool _disposed = false;
 
   AuthStatus _status = AuthStatus.unknown;
   Profile? _profile;
@@ -26,27 +30,34 @@ class AuthController extends ChangeNotifier {
   User? get user => _user;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
-  /// Rehydrate the session from the secure keystore. Called once at startup;
-  /// the splash screen shows while `status` is `unknown`.
+  bool _current(int generation) => !_disposed && _session.isCurrent(generation);
+
   Future<void> restore() async {
+    if (_disposed) return;
+    final generation = _session.beginSession();
     try {
-      final String? access = await tokenStore.readAccessToken();
+      await _session.settled;
+      if (!_current(generation)) return;
+      final access = await tokenStore.readAccessToken();
+      if (!_current(generation)) return;
       if (access == null || access.isEmpty) {
         _setUnauthenticated();
         notifyListeners();
         return;
       }
-      // A stored-but-expired token triggers the client's refresh-on-401, which
-      // either re-issues or clears tokens. Any failure here (bad token, account
-      // disabled, or a network error) signs out for a clean cold-start path;
-      // fine for v1 — the keystore round-trip is the only thing at stake.
-      final Profile profile = await api.me();
+      final profile = await api.me();
+      if (!_current(generation)) return;
       _profile = profile;
       _user = User(id: profile.id, email: profile.email ?? '');
       _status = AuthStatus.authenticated;
       notifyListeners();
-    } catch (_) {
-      await _signOutQuietly();
+    } catch (error) {
+      if (!_current(generation)) return;
+      if (error is ApiException && (error.statusCode == 401 || error.statusCode == 403)) {
+        await _session.mutate(generation, tokenStore.clear);
+      }
+      if (!_current(generation)) return;
+      _setUnauthenticated();
       notifyListeners();
     }
   }
@@ -56,59 +67,82 @@ class AuthController extends ChangeNotifier {
     required String password,
     required String birthdate,
   }) async {
-    final AuthResult result = await api.register(
+    if (_disposed) return;
+    final generation = _beginLogin();
+    await _session.clear();
+    if (!_current(generation)) return;
+    final result = await api.register(
       email: email,
       password: password,
       birthdate: birthdate,
     );
-    await _applySession(result);
+    await _applySession(result, generation);
   }
 
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
-    final AuthResult result = await api.login(
-      email: email,
-      password: password,
-    );
-    await _applySession(result);
+  Future<void> login({required String email, required String password}) async {
+    if (_disposed) return;
+    final generation = _beginLogin();
+    await _session.clear();
+    if (!_current(generation)) return;
+    final result = await api.login(email: email, password: password);
+    await _applySession(result, generation);
+  }
+
+  int _beginLogin() {
+    final generation = _session.beginSession();
+    // Switching accounts is an explicit new session, not permission to keep
+    // issuing protected requests with the previous account's credentials.
+    _setUnauthenticated();
+    notifyListeners();
+    return generation;
   }
 
   Future<void> signOut() async {
-    await _signOutQuietly();
+    if (_disposed) return;
+    _session.beginSession();
+    _setUnauthenticated();
     notifyListeners();
+    // Always finish this queued clear, even if a later login fails. The queue
+    // orders it after already-started writes and before later session writes.
+    await _session.clear();
   }
 
-  Future<void> _applySession(AuthResult result) async {
-    await tokenStore.writeTokens(
-      accessToken: result.tokens.accessToken,
-      refreshToken: result.tokens.refreshToken,
+  Future<void> _applySession(AuthResult result, int generation) async {
+    if (!_current(generation)) return;
+    final stored = await _session.mutate(
+      generation,
+      () => tokenStore.writeTokens(
+        accessToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+      ),
     );
+    if (!stored || !_current(generation)) return;
     _user = result.user;
+    _profile = null;
     _status = AuthStatus.authenticated;
     notifyListeners();
 
-    // Best-effort fetch of the richer profile; don't fail the login if this
-    // network call hiccups — the user is already in.
     try {
-      _profile = await api.me();
+      final profile = await api.me();
+      if (!_current(generation)) return;
+      _profile = profile;
     } catch (_) {
+      if (!_current(generation)) return;
       _profile = null;
     }
     notifyListeners();
-  }
-
-  Future<void> _signOutQuietly() async {
-    await tokenStore.clear();
-    _user = null;
-    _profile = null;
-    _status = AuthStatus.unauthenticated;
   }
 
   void _setUnauthenticated() {
     _user = null;
     _profile = null;
     _status = AuthStatus.unauthenticated;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _session.beginSession();
+    super.dispose();
   }
 }

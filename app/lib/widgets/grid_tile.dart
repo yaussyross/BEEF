@@ -24,9 +24,7 @@ class GridTile extends StatelessWidget {
           color: BeefColors.cream.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: profile.isVerified
-                ? BeefColors.lime.withValues(alpha: 0.55)
-                : BeefColors.cream.withValues(alpha: 0.12),
+            color: BeefColors.cream.withValues(alpha: 0.12),
           ),
         ),
         child: Padding(
@@ -49,8 +47,6 @@ class GridTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (profile.isVerified)
-                    const _VerifiedDot(),
                 ],
               ),
               const SizedBox(height: 8),
@@ -101,26 +97,6 @@ class GridTile extends StatelessWidget {
   static String _initial(String? displayName) {
     if (displayName == null || displayName.isEmpty) return '?';
     return displayName.characters.first.toUpperCase();
-  }
-}
-
-class _VerifiedDot extends StatelessWidget {
-  const _VerifiedDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: BeefColors.lime,
-        shape: BoxShape.circle,
-      ),
-      padding: const EdgeInsets.all(2),
-      child: const Icon(
-        Icons.check,
-        size: 12,
-        color: BeefColors.char,
-      ),
-    );
   }
 }
 

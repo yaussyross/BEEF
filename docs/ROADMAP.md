@@ -1,3 +1,5 @@
+> Current acceptance map: [27 October audit](PRODUCT-ACCEPTANCE-2026-10-27.md). Earlier dated verification statements below are historical. PR #6 reached green 8a0036f before this follow-up; later work requires its own checks. Nothing is deployed by this audit.
+
 # BEEF — Roadmap (working checklist)
 
 The plan of record for what happens next, consistent with `docs/BUSINESS.md`
@@ -9,6 +11,13 @@ update both together when an item ships.
 Legend: ✅ done (see STATUS.md) · ⬜ not started · 🔶 in progress
 
 ---
+
+## 2026-10-21 development slice
+
+- ✅ Locally tested waitlist recovery, working join anchor, responsive layout,
+  status announcements and reduced motion. See [evidence](REVIVAL-2026-10-21.md).
+- 🔶 Existing chat work recovered from PR #5 at `4c79f83`; not merged into
+  fetched `origin/main`. Review and compile that work before replacing it.
 
 ## Phase 1 — MVP build (in progress)
 
@@ -38,13 +47,15 @@ Ordered by dependency; the first is the highest-priority unstarted item in the r
    verified `block` / `report` endpoints; privacy/trust settings surfaced in-app
    (coarse-location modes, hide-distance toggle, opt-in sharing — whatever the
    API exposes; see `backend/src/lib/privacy.ts`).
-3. ⬜ **Profile rating system ("Rate this Guy")** — fully unstarted:
-   - [ ] Migration `0009` — ratings table (rater, ratee, stars 1–5, created_at,
+   Local UI and tests are now authored; Flutter/device validation is still pending.
+3. ⬜ **Profile rating system ("Rate this Guy")** — backend eligibility/write path verified locally; client source authored with validation pending:
+   - [x] Migration `0009` — ratings table (rater, ratee, stars 1–5, created_at,
          unique on (rater, ratee))
-   - [ ] Endpoint — POST rating, **unlocked only after a real ≥5-minute chat**
-         thread exists between the pair; re-rating allowed, **latest vote wins**;
-         aggregate shown next to the username on the recipient's public profile
-   - [ ] Client prompt + stars UI ("Rate this Guy")
+   - [x] Endpoint — GET eligibility / POST rating, **unlocked only after messages
+         from both people span ≥5 minutes** (owner approved October 26);
+         re-rating allowed, **latest database write wins**.
+   - [ ] Public aggregate API and display next to the username (held outside this step by latest instruction)
+   - [ ] Client prompt + stars UI ("Rate this Guy") — source/tests authored, Flutter validation pending
    - [ ] Grid/profile display of the aggregate rating
 4. ⬜ **Bundle store assets into the app** — link the shipped fonts
    (`design/store/fonts/`: Unbounded + Space Grotesk) per the note in

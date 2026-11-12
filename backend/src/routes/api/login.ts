@@ -1,3 +1,5 @@
+import { loginThrottle } from "~/lib/login-throttle";
+import { requireAllowedTestEmail } from "~/lib/closed-test";
 import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
 import { AuthError, issueTokens, normalizeEmail, verifyPassword } from "~/lib/auth";
@@ -21,6 +23,12 @@ export const Route = createFileRoute("/api/login")({
         const email = normalizeEmail(typeof body.email === "string" ? body.email : "");
         const password = typeof body.password === "string" ? body.password : "";
 
+        const retryAfter = loginThrottle(email);
+        if (retryAfter) {
+          return json({ error: "rate_limited", message: "Please wait before trying again." },
+            { status: 429, headers: { "Retry-After": String(retryAfter) } });
+        }
+
         if (!email || !password) {
           return json(
             { error: "missing_credentials", message: "Email and password are required." },
@@ -29,6 +37,7 @@ export const Route = createFileRoute("/api/login")({
         }
 
         try {
+          requireAllowedTestEmail(email);
           const rows = await sql()`SELECT id, email, password_hash, status
                                  FROM users
                                  WHERE email = ${email}

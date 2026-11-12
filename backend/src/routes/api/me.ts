@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/me")({
 
           const rows = await sql()`SELECT u.id, u.email, u.status,
                                         p.display_name, p.bio, p.intent_tags::text[] AS intent_tags,
-                                        p.photo_verification_status, p.hide_distance
+                                        'unverified'::text AS photo_verification_status, p.hide_distance
                                  FROM users u
                                  JOIN profiles p ON p.user_id = u.id
                                  WHERE u.id = ${userId}

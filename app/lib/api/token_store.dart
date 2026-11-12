@@ -14,6 +14,46 @@ abstract class TokenStore {
   Future<void> clear();
 }
 
+/// Coordinates token mutations across authentication and HTTP refresh for the
+/// same store. A generation represents one session intent, not one request.
+/// All writers must use this coordinator so sign-out clears even an in-flight
+/// secure-keystore write before another session can use its credentials.
+class TokenSession {
+  TokenSession._(this._store);
+
+  static final Expando<TokenSession> _sessions = Expando<TokenSession>();
+
+  static TokenSession forStore(TokenStore store) =>
+      _sessions[store] ??= TokenSession._(store);
+
+  final TokenStore _store;
+  int _generation = 0;
+  Future<void> _tail = Future<void>.value();
+
+  int get generation => _generation;
+  int beginSession() => ++_generation;
+  bool isCurrent(int generation) => generation == _generation;
+  Future<void> get settled => _tail;
+
+  Future<bool> mutate(int generation, Future<void> Function() action) {
+    final operation = _tail.then((_) async {
+      if (!isCurrent(generation)) return false;
+      await action();
+      return isCurrent(generation);
+    });
+    _tail = operation.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return operation;
+  }
+
+  /// Once sign-out is requested, its queued deletion must run even if a newer
+  /// login starts before the previous keystore write finishes.
+  Future<void> clear() {
+    final operation = _tail.then((_) => _store.clear());
+    _tail = operation.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return operation;
+  }
+}
+
 /// Platform secure keystore (iOS Keychain / Android EncryptedSharedPreferences)
 /// backed by `flutter_secure_storage`. Tokens never touch shared prefs.
 class SecureTokenStore implements TokenStore {

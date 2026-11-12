@@ -1,0 +1,240 @@
+PostgreSQL 17.5 (Debian 17.5-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
+POSTGIS="3.5.2 dea6d0a" [EXTENSION] PGSQL="170" GEOS="3.9.0-CAPI-1.16.2" PROJ="7.2.1 NETWORK_ENABLED=OFF URL_ENDPOINT=https://cdn.proj.org USER_WRITABLE_DIRECTORY=/var/lib/postgresql/.local/share/proj DATABASE_PATH=/usr/share/proj/proj.db" (compiled against PROJ 7.2.1) LIBXML="2.9.10" LIBJSON="0.15" LIBPROTOBUF="1.3.3" WAGYU="0.5.0 (Internal)" TOPOLOGY
+
+PASS: all migrations applied to fresh local database
+PASS: second migration run skips all migration files
+BEGIN
+CREATE FUNCTION
+psql:/tmp/beef-db/tests/contracts.sql:11: NOTICE:  PASS: all migrations tracked
+ assert_true
+-------------
+
+(1 row)
+
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/contracts.sql:12: NOTICE:  PASS: fresh database contains no users
+psql:/tmp/beef-db/tests/contracts.sql:13: NOTICE:  PASS: interest taxonomy seeded
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: exactly 18 accepted
+psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: underage insert rejected
+psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: underage update rejected
+psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: missing birthdate rejected
+psql:/tmp/beef-db/tests/contracts.sql:50: NOTICE:  PASS: case-insensitive email uniqueness
+DO
+INSERT 0 1
+INSERT 0 2
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/contracts.sql:56: NOTICE:  PASS: intent tags preserve text-array contract
+psql:/tmp/beef-db/tests/contracts.sql:57: NOTICE:  PASS: privacy and verification defaults
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/contracts.sql:61: NOTICE:  PASS: geography trigger uses longitude/latitude order
+INSERT 0 1
+ assert_true
+-------------
+
+(1 row)
+
+UPDATE 1
+psql:/tmp/beef-db/tests/contracts.sql:63: NOTICE:  PASS: clearing coordinates clears derived geography
+ assert_true
+-------------
+
+(1 row)
+
+INSERT 0 1
+INSERT 0 2
+psql:/tmp/beef-db/tests/contracts.sql:69: NOTICE:  PASS: both chat participants can join
+ assert_true
+-------------
+
+(1 row)
+
+INSERT 0 1
+psql:/tmp/beef-db/tests/contracts.sql:72: NOTICE:  PASS: message updates thread activity
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/contracts.sql:95: NOTICE:  PASS: message idempotency constraint
+psql:/tmp/beef-db/tests/contracts.sql:95: NOTICE:  PASS: pair deduplication
+psql:/tmp/beef-db/tests/contracts.sql:95: NOTICE:  PASS: ordered pair constraint
+DO
+ROLLBACK
+                 case
+---------------------------------------
+ PASS: all synthetic users rolled back
+(1 row)
+
+
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 3
+INSERT 0 1
+INSERT 0 2
+CREATE FUNCTION
+psql:/tmp/beef-db/tests/ratings.sql:34: NOTICE:  PASS: old open thread without messages does not qualify
+ assert_true
+-------------
+
+(1 row)
+
+ reject_rating
+---------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:36: NOTICE:  PASS: direct rating write cannot bypass chat gate
+INSERT 0 2
+psql:/tmp/beef-db/tests/ratings.sql:40: NOTICE:  PASS: one-sided messages spanning five minutes do not qualify
+ assert_true
+-------------
+
+(1 row)
+
+INSERT 0 1
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:43: NOTICE:  PASS: third-party message cannot supply the missing participant
+DELETE 1
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:46: NOTICE:  PASS: mutual exchange spanning 299 seconds stays locked despite idle time
+ assert_true
+-------------
+
+(1 row)
+
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:48: NOTICE:  PASS: mutual exchange spanning exactly 300 seconds qualifies
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:49: NOTICE:  PASS: eligibility works in both directions
+ assert_true
+-------------
+
+(1 row)
+
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:51: NOTICE:  PASS: mutual exchange spanning 301 seconds qualifies
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:52: NOTICE:  PASS: unrelated pair cannot borrow another conversation
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:53: NOTICE:  PASS: self rating is never eligible
+ assert_true
+-------------
+
+(1 row)
+
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:55: NOTICE:  PASS: future timestamp is not eligibility evidence
+ assert_true
+-------------
+
+(1 row)
+
+UPDATE 1
+DELETE 1
+psql:/tmp/beef-db/tests/ratings.sql:58: NOTICE:  PASS: missing participant membership prevents eligibility
+ assert_true
+-------------
+
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/beef-db/tests/ratings.sql:63: NOTICE:  PASS: re-rating replaces the existing vote
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:64: NOTICE:  PASS: zero stars rejected
+ reject_rating
+---------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:65: NOTICE:  PASS: six stars rejected
+ reject_rating
+---------------
+
+(1 row)
+
+INSERT 0 1
+psql:/tmp/beef-db/tests/ratings.sql:67: NOTICE:  PASS: reverse-direction block revokes eligibility
+ assert_true
+-------------
+
+(1 row)
+
+psql:/tmp/beef-db/tests/ratings.sql:68: NOTICE:  PASS: blocked re-rating rejected at database layer
+ reject_rating
+---------------
+
+(1 row)
+
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:70: NOTICE:  PASS: forward-direction block revokes eligibility
+ assert_true
+-------------
+
+(1 row)
+
+DELETE 1
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:73: NOTICE:  PASS: suspended rater cannot re-rate
+ reject_rating
+---------------
+
+(1 row)
+
+UPDATE 1
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:76: NOTICE:  PASS: banned recipient cannot be rated
+ reject_rating
+---------------
+
+(1 row)
+
+UPDATE 1
+psql:/tmp/beef-db/tests/ratings.sql:78: NOTICE:  PASS: deleted recipient is ineligible
+ assert_true
+-------------
+
+(1 row)
+
+ROLLBACK
+
+Removed disposable test container and memory-backed data.

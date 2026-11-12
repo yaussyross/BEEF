@@ -1,3 +1,4 @@
+import { requireAllowedTestEmail } from "~/lib/closed-test";
 import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "~/db";
 import { AuthError, issueTokens, verifyRefreshToken } from "~/lib/auth";
@@ -40,6 +41,7 @@ export const Route = createFileRoute("/api/refresh")({
           if (!user) {
             throw new AuthError(401, "invalid_token", "Account no longer exists.");
           }
+          requireAllowedTestEmail(user.email);
           if (user.status !== "active") {
             throw new AuthError(403, "account_disabled", "This account is not active.");
           }

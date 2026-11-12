@@ -36,17 +36,18 @@ class GridPage {
 ///
 /// Supported grid query params (server-side): `limit` (1–100, default 50),
 /// `offset` (>= 0), `radius_mi` (1–1000, default 50), `intent`
-/// (`friends|chat|date|hookup`). Interest narrowing is client-side: the grid
-/// returns a per-row `shared_interests` overlap count, which the
-/// [DiscoveryController] uses to prioritise cuts with shared tastes.
+/// (`friends|chat|date|hookup`) and selected `interests` (any matching slug).
 class DiscoveryApi {
   DiscoveryApi(this._client);
 
   final ApiClient _client;
 
+  void close() => _client.close();
+
   /// GET /api/grid with the server-supported filters.
   Future<GridPage> grid({
     String? intent,
+    Set<String> interests = const {},
     int limit = 50,
     int offset = 0,
     double radiusMi = 50,
@@ -59,6 +60,7 @@ class DiscoveryApi {
     if (intent != null && intent.isNotEmpty) {
       params['intent'] = intent;
     }
+    if (interests.isNotEmpty) params['interests'] = (interests.toList()..sort()).join(',');
     final String query = params.entries
         .map((MapEntry<String, String> e) =>
             '${e.key}=${Uri.encodeComponent(e.value)}')

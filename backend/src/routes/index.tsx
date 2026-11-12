@@ -1,32 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { appendFile, mkdir } from "node:fs/promises";
-import { useState } from "react";
-
-/**
- * Waitlist capture. Submissions are appended (one JSON object per line) to
- * .run/waitlist.jsonl in the site working directory. The .run/ folder is
- * gitignored and lives on this machine, so entries survive a `bun run publish`
- * (rebuild + server restart) of THIS host. Honest limitation: this is
- * single-host, file-based persistence — it is not a managed database, so it
- * would not survive the sandbox being rebuilt elsewhere. Swap in the DB helper
- * (src/db.ts) once a DATABASE_URL is connected.
- */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-const joinWaitlist = createServerFn({ method: "POST" })
-  .validator((data: { email?: string }) => data)
-  .handler(async ({ data }) => {
-    const email = (data.email ?? "").trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      return { ok: false, error: "That email looks a little undercooked. Try again?" };
-    }
-    const line = JSON.stringify({ email, ts: new Date().toISOString() }) + "\n";
-    await mkdir(".run", { recursive: true });
-    await appendFile(".run/waitlist.jsonl", line, "utf8");
-    return { ok: true, email };
-  }
-);
+import { useRef, useState } from "react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -37,7 +10,7 @@ function Nav() {
     <header className="sticky top-0 z-40 border-b border-char/10 bg-cream/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <a href="#top" className="flex items-center gap-3">
-          <span className="brand-mark text-2xl text-steak sm:text-3xl">BEEF</span>
+          <span className="brand-mark text-2xl text-steak sm:text-3xl">Otter Wink</span>
           <span className="scribble hidden -rotate-3 text-lg text-sizzle sm:inline-block">
             aged to perfection
           </span>
@@ -97,7 +70,7 @@ function Hero() {
           </p>
 
           <p className="mt-6 max-w-md text-lg leading-relaxed text-cream/95">
-            The free gay social app for friends, dates &amp; hookups — local,
+            The upcoming gay social app for friends, dates &amp; hookups — local,
             fresh, and full of flavor. No small talk required (but we won&rsquo;t
             judge you if you make some).
           </p>
@@ -153,9 +126,9 @@ function Hero() {
       {/* social proof strip */}
       <div className="relative border-t border-cream/25 bg-char/10 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-5 py-4 text-sm font-semibold text-cream">
-          <span>Free forever</span>
+          <span>Coming soon</span>
           <span className="hidden text-cream/40 sm:inline">·</span>
-          <span>Ad-supported</span>
+          <span>Adults 18+</span>
           <span className="hidden text-cream/40 sm:inline">·</span>
           <span>Friends, dates &amp; hookups</span>
           <span className="hidden text-cream/40 sm:inline">·</span>
@@ -215,8 +188,8 @@ function ValueProps() {
       color: "bg-sizzle",
     },
     {
-      title: "Wildly free, forever",
-      body: "Free to use, brought to you by tasteful in-app ads. Your inbox stays saucy, your wallet stays full.",
+      title: "Make a connection",
+      body: "Friends, dates and conversation, with room to be yourself. Otter Wink is in development for adults 18+.",
       tag: "Well-marbled",
       color: "bg-berry",
     },
@@ -265,7 +238,7 @@ function Flavor() {
       img: "/beef-model-03-emerald-bomber.jpg",
       kicker: "The grid",
       title: "Nearby guys, one sizzling grid.",
-      body: "Beef is a proximity app in the spirit of the classics — but with a real personality and none of the copycat energy. See who&rsquo;s close by, send a hello, and let the marbling do the talking.",
+      body: "Otter Wink is a proximity app in the spirit of the classics — but with a real personality and none of the copycat energy. See who&rsquo;s close by, send a hello, and let the marbling do the talking.",
     },
     {
       img: "/beef-model-02-coral-tank.jpg",
@@ -288,7 +261,7 @@ function Flavor() {
             Flavor profile
           </p>
           <h2 className="brand-mark mt-3 text-3xl uppercase sm:text-4xl">
-            Why BEEF&rsquo;s the main course
+            Why Otter Wink&rsquo;s the main course
           </h2>
         </div>
 
@@ -323,19 +296,32 @@ function Flavor() {
 
 function WaitlistForm() {
   const [email, setEmail] = useState("");
+  const submitting = useRef(false);
   const [status, setStatus] = useState<{ kind: "idle" | "busy" | "ok" | "err"; msg?: string }>({
     kind: "idle",
   });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus({ kind: "busy" });
-    const res = await joinWaitlist({ data: { email } });
-    if (res.ok) {
-      setStatus({ kind: "ok", msg: "You're on the grill. Talk soon, handsome." });
-      setEmail("");
-    } else {
-      setStatus({ kind: "err", msg: res.error });
+    if (submitting.current) return;
+    submitting.current = true;
+    setStatus({ kind: "busy", msg: "Saving your place…" });
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const res = await response.json();
+      if (response.ok && res.ok === true) {
+        setStatus({ kind: "ok", msg: "You're on the waitlist. We'll email you when there's news." });
+        setEmail("");
+      } else {
+        setStatus({ kind: "err", msg: typeof res.error === "string" ? res.error : "We couldn't confirm your place. Your email is still here; please try again." });
+      }
+    } catch {
+      setStatus({ kind: "err", msg: "We couldn't confirm your place. Your email is still here; please try again." });
+    } finally {
+      submitting.current = false;
     }
   }
 
@@ -358,8 +344,11 @@ function WaitlistForm() {
           </p>
 
           <form
+            id="join"
+            aria-label="Join the Otter Wink waitlist"
+            aria-busy={status.kind === "busy"}
             onSubmit={submit}
-            className="mx-auto mt-10 flex max-w-xl flex-col gap-3 sm:flex-row"
+            className="mx-auto mt-10 flex max-w-xl scroll-mt-28 flex-col gap-3 sm:flex-row"
           >
             <label htmlFor="waitlist-email" className="sr-only">
               Email address
@@ -367,11 +356,19 @@ function WaitlistForm() {
             <input
               id="waitlist-email"
               type="email"
+              name="email"
+              autoComplete="email"
+              maxLength={254}
+              aria-describedby="waitlist-note waitlist-status"
+              readOnly={status.kind === "busy"}
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (status.kind !== "busy") setStatus({ kind: "idle" });
+              }}
               placeholder="you@somethingtasty.com"
-              className="w-full flex-1 rounded-full border-2 border-char/15 bg-white px-6 py-4 text-char outline-none transition placeholder:text-char/40 focus:border-steak"
+              className="min-w-0 w-full flex-1 rounded-full border-2 border-char/15 bg-white px-6 py-4 text-char outline-none transition placeholder:text-char/40 focus:border-steak"
             />
             <button
               type="submit"
@@ -382,17 +379,24 @@ function WaitlistForm() {
             </button>
           </form>
 
-          {status.kind === "ok" && (
-            <p className="mt-5 font-medium text-green-700">{status.msg}</p>
-          )}
-          {status.kind === "err" && (
-            <p className="mt-5 font-medium text-steak">{status.msg}</p>
-          )}
+          <p id="waitlist-note" className="mx-auto mt-4 max-w-xl text-sm text-char/80">
+            Otter Wink is in development for adults 18+. Joining the waitlist does not
+            create an app account.
+          </p>
+          <p
+            id="waitlist-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className={`mt-5 min-h-12 font-medium ${status.kind === "err" ? "text-beefer" : "text-char"}`}
+          >
+            {status.msg ?? ""}
+          </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-char/60">
-            <span>Free forever</span>
+            <span>Coming soon</span>
             <span>·</span>
-            <span>Ad-supported</span>
+            <span>Adults 18+</span>
             <span>·</span>
             <span>Friends, dates &amp; hookups</span>
             <span>·</span>
@@ -409,18 +413,18 @@ function Footer() {
     <footer className="bg-beefer py-12 text-cream">
       <div className="mx-auto max-w-6xl px-5 text-center">
         <div className="flex items-center justify-center gap-3">
-          <span className="brand-mark text-3xl text-cream">BEEF</span>
+          <span className="brand-mark text-3xl text-cream">Otter Wink</span>
           <span className="scribble -rotate-3 text-lg text-sizzle">
             fresh · local · full of flavor
           </span>
         </div>
         <p className="mx-auto mt-4 max-w-md text-sm text-cream/70">
-          A free, ads-supported gay social app for friends, dates &amp; hookups.
+          An upcoming gay social app for friends, dates &amp; hookups.
           Inspired by the greats — never a copy. Classy, confident, saucy-not-smutty.
         </p>
         <div className="mx-auto mt-6 h-px w-24 bg-cream/25" />
         <p className="mt-6 text-xs text-cream/50">
-          © {new Date().getFullYear()} BEEF. All rights reserved.
+          © {new Date().getFullYear()} Otter Wink. All rights reserved.
         </p>
       </div>
     </footer>

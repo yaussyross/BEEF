@@ -1,0 +1,47 @@
+PASS fresh migrated PostgreSQL reachable through real Neon HTTP driver
+PASS auth registration/login/refresh, token audience, unauthenticated and underage rejection
+PASS intent-array decoding, grid distance buckets and public payload privacy
+PASS real WebSocket send/ack/delivery/read and REST history/idempotency/privacy/participant guards
+PASS ratings enforce mutual 299/300/301-second boundaries, reject timing/identity/input abuse and replace concurrent re-ratings
+PASS in-chat report accepts a participant and rejects outsiders
+PASS report concurrent identical retries, changed-key misuse and authenticated reporter isolation
+PASS committed report with discarded response recovers the original receipt on retry
+[api] unhandled error: 1293 | `Error connecting to database: ${ee}`);throw M.sourceError=ee,M}if(ye.ok){let ee=await ye.json();if(Array.
+1294 | isArray(P)){let M=ee.results;if(!Array.isArray(M))throw new be("Neon internal error: unexpected resu\
+1295 | lt format");return M.map(($,me)=>{let Ot=I[me]??{},vo=Ot.arrayMode??se,xo=Ot.fullResults??oe;return os(
+1296 | $,{arrayMode:vo,fullResults:xo,types:Ot.types})})}else{let M=I??{},$=M.arrayMode??se,me=M.fullResults??
+1297 | oe;return os(ee,{arrayMode:$,fullResults:me,types:M.types})}}else{let{status:ee}=ye;if(ee===400){let M=await ye.
+1298 | json(),$=new be(M.message);for(let me of Bu)$[me]=M[me]??void 0;throw $}else{let M=await ye.text();throw new be(
+                    ^
+NeonDbError: synthetic report rollback
+   severity: "ERROR",
+     detail: undefined,
+       hint: undefined,
+   position: undefined,
+ internalPosition: undefined,
+ internalQuery: undefined,
+      where: "PL/pgSQL function synthetic_fail_report_profile() line 2 at RAISE\nSQL statement \"UPDATE profiles SET moderation_status = 'suspended' WHERE user_id = target_user\"\nPL/pgSQL function submit_report_once(uuid,uuid,text,uuid,uuid,uuid,uuid,report_type,text,boolean) line 39 at SQL statement",
+     schema: undefined,
+      table: undefined,
+       line: "3911",
+     column: undefined,
+   dataType: undefined,
+ constraint: undefined,
+       file: "pl_exec.c",
+    routine: "exec_stmt_raise",
+ sourceError: undefined,
+       code: "P0001"
+
+      at Y (/tmp/beef-backend/node_modules/@neondatabase/serverless/index.mjs:1298:14)
+      at processTicksAndRejections (native:7:39)
+
+[ncmec] STUB: queued CyberTipline submission for report 54d03e13-2505-4470-8bee-19fa3bf513d2 (no credentials — human review required before launch).
+PASS report failure rolls back all effects; retry commits once and replay preserves subsequent human decisions
+PASS REST block closes sockets across bundled modules and prevents both directions of access
+[ncmec] STUB: queued CyberTipline submission for report accdb547-e96a-468b-baa0-5610425a55af (no credentials — human review required before launch).
+PASS synthetic report suspension closes sockets and rejects existing tokens/refresh/upgrade/chat
+PASS human moderation ban revokes existing socket and HTTP session
+PASS direct status change is enforced on an existing socket next action and HTTP request
+PASS transport outage fails closed on active socket, HTTP and upgrade; recovery restores access
+PASS all persisted accounts are synthetic fixtures
+Removed disposable proxy, PostgreSQL data and private network.

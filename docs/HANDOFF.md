@@ -1,4 +1,10 @@
+> Current acceptance map: [27 October audit](PRODUCT-ACCEPTANCE-2026-10-27.md). Earlier dated verification statements below are historical. PR #6 reached green 8a0036f before this follow-up; later work requires its own checks. Nothing is deployed by this audit.
+
 # BEEF — Handoff
+
+> Current local audit: [26 October 2026 launch readiness](LAUNCH-READINESS-2026-10-26.md).
+> It reconciles the chat and waitlist tracks and distinguishes current checks
+> from the historical live/CI results below. Public launch remains gated.
 
 **BEEF** is a free, ads-supported gay male social app for friends, dates, and
 hookups — a grid-based proximity app (in the spirit of Grindr, but with its own
@@ -45,19 +51,24 @@ start here and read the docs in the order below.
   onboarding/18+ gate + auth, ~1,700 lines) and slice 2 (grid, profiles,
   intent tags, interest discovery) exist in `app/lib/` and pass CI
   compilation/analysis, but nobody has run the app on a device or emulator yet.
-- **Not built yet:** the in-app chat UI (the backend WebSocket works), the
-  block/report and privacy-settings UI, and the profile rating system
-  ("Rate this Guy" — schema, endpoint, and prompt are all unstarted).
+- **Chat client increment:** inbox, conversation history, native WebSocket chat,
+  HTTP fallback, retry, moderation-safe display, and focused tests now exist.
+  Live two-device testing is still needed (see `app/README.md`).
+- **Ratings backend:** migration 0009 and eligibility/vote endpoints now enforce
+  the owner's approved rule (messages from both people spanning five minutes).
+  See the current audit for local database and API evidence.
+- **Client controls authored, not Flutter-verified:** block/report, privacy
+  settings and rating eligibility/submission. Public aggregate API/display
+  remains outside the current scope; see `app/README.md` for exact coverage.
 
 ## What to do next (priority order)
 
 1. **Read the docs** in the order below (~10 minutes).
 2. **Bring the backend up locally** (`docs/RUNBOOK.md`) and confirm the
    endpoints answer. Everything needed is in `.env.example`.
-3. **Finish the Flutter client:** the chat UI (backend is done — Wire
-   `lib/screens/` to `src/ws/chat.ts` over `/api/ws`), the block/report and
-   privacy settings UI, and the "Rate this Guy" rating system (schema +
-   endpoint + prompt).
+3. **Finish the Flutter client:** verify the chat increment on two devices,
+   then add block/report and privacy settings UI, the "Rate this Guy" prompt,
+   and public aggregate rating API/display.
 4. **Get CI green on app builds** (already green on `main`; keep it that way —
    every PR runs the Flutter compile).
 5. **Owner accounts for release:** Apple Developer, Google Play, and Firebase
@@ -87,3 +98,19 @@ do **not** transfer: the published site URL, the `backend/publish.sh` /
 (`backend/vercel-entry.ts`). They are marked "[this-platform only]" where they
 appear. The next owner should re-host the landing site + API on their own host;
 the code itself is portable Bun + TanStack Start.
+
+
+Local staging follow-up (not pushed): see [STAGING-RUNTIME.md](STAGING-RUNTIME.md).
+Explicit bind/configuration replaces sandbox port takeover; health/readiness and
+bounded shutdown are implemented; waitlist storage now uses PostgreSQL. Remote
+PR #6 remains green at 777700a; its CI does not cover this local follow-up yet.
+
+
+Local moderation follow-up supersedes accusation-based automatic suspension:
+owner approved urgent review and targeted content containment, and selected a
+closed synthetic test. Ross intends to review; no live admin access or operational
+coverage is established. Metadata-only queue and persistent message holds are
+implemented. Specialized review/release/escalation remains a prerequisite.
+33 regressions, five runtime tests, 41 DB checks and 19 API/WS groups pass locally;
+one additional Flutter cache-invalidation test is authored but not executed.
+Remote PR #6 is still the earlier green 777700a; these changes are local only.

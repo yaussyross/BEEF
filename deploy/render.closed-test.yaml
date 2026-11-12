@@ -1,0 +1,45 @@
+# Apply only in Ross workspace tea-db0folad0e5s73bem6pg after preview confirms $0.
+# Disable Blueprint Auto Sync separately in Dashboard; no secret values here.
+previews:
+  generation: "off"
+services:
+  - type: web
+    name: beef-synthetic-staging
+    runtime: node
+    plan: free
+    region: oregon
+    repo: https://github.com/yaussyross/BEEF
+    branch: review/private-controls-2026-10-26
+    autoDeployTrigger: "off"
+    buildCommand: cd backend && bun install --frozen-lockfile && bun run build
+    startCommand: cd backend && bun --no-env-file staging-start.ts
+    healthCheckPath: /readyz
+    envVars:
+      - key: BUN_VERSION
+        value: 1.3.14
+      - key: BEEF_HOST
+        value: 0.0.0.0
+      - key: BEEF_DATABASE_DRIVER
+        value: postgres
+      - key: BEEF_DATABASE_TLS
+        value: render_internal
+      - key: BEEF_ACCESS_MODE
+        value: closed_test
+      - key: BEEF_STAGING_MIGRATIONS
+        value: apply
+      - key: BEEF_CLOSED_TEST_EMAILS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MODERATION_ADMIN_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: beef-synthetic-db
+          property: connectionString
+databases:
+  - name: beef-synthetic-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+    ipAllowList: []
