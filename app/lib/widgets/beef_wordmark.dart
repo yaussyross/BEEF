@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/beef_colors.dart';
 
-/// The BEEF wordmark + tagline, reused across splash/onboarding/home.
+/// The Otter Wink wordmark + tagline, reused across splash/onboarding/home.
 class BeefWordmark extends StatelessWidget {
   const BeefWordmark({super.key, this.compact = false});
 
@@ -15,19 +15,20 @@ class BeefWordmark extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Text(
-          'BEEF',
+          'Otter Wink',
+          textAlign: TextAlign.center,
           style: (compact
                   ? theme.textTheme.headlineMedium
                   : theme.textTheme.displayLarge)
               ?.copyWith(
             color: BeefColors.cream,
             fontWeight: FontWeight.w900,
-            letterSpacing: compact ? 2 : 4,
+            letterSpacing: compact ? 0 : 1,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'A cut above the rest.',
+          'Make a connection.',
           style: theme.textTheme.titleLarge?.copyWith(
             color: BeefColors.cream.withValues(alpha: 0.9),
             fontStyle: FontStyle.italic,
@@ -36,7 +37,7 @@ class BeefWordmark extends StatelessWidget {
         if (!compact) ...<Widget>[
           const SizedBox(height: 4),
           Text(
-            '(well-marbled, obviously)',
+            '(a wink is a good start)',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: BeefColors.lime,
               fontStyle: FontStyle.italic,

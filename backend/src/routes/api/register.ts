@@ -53,7 +53,7 @@ export const Route = createFileRoute("/api/register")({
         if (!isAdult(birthdate)) {
           // Privacy-first 18+ gate, enforced server-side on every registration.
           return json(
-            { error: "underage", message: "You must be at least 18 years old to use BEEF." },
+            { error: "underage", message: "You must be at least 18 years old to use Otter Wink." },
             { status: 403 }
           );
         }

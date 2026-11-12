@@ -30,14 +30,14 @@ class _OfflinePreviewState extends State<OfflinePreview> {
   void dispose() { chat.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) => ChatScope(controller: chat, child: MaterialApp(
-    title: 'BEEF synthetic offline preview', theme: BeefTheme.dark,
+    title: 'Otter Wink synthetic offline preview', theme: BeefTheme.dark,
     builder: (context, child) => Column(children: [
       const SafeArea(bottom: false, child: Material(color: Colors.black, child: Padding(
         padding: EdgeInsets.all(8), child: Text('SYNTHETIC OFFLINE PREVIEW · NO BACKEND', style: TextStyle(color: Colors.white, fontSize: 12)),
       ))),
       Expanded(child: child!),
     ]),
-    home: Builder(builder: (context) => Scaffold(appBar: AppBar(title: const Text('BEEF preview')),
+    home: Builder(builder: (context) => Scaffold(appBar: AppBar(title: const Text('Otter Wink preview')),
       body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Padding(padding: EdgeInsets.all(20), child: Text('Browser preview only. Not native iOS. No real accounts or messages.')),
         FilledButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const ConversationScreen(thread: testThread))), child: const Text('Try synthetic chat')),

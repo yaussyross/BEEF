@@ -1,3 +1,7 @@
+# Otter Wink (formerly BEEF)
+
+Current display brand is **Otter Wink**, approved November 12, 2026. Technical package IDs, environment variable names and repository paths remain stable for compatibility. See [rebrand status](docs/OTTER-WINK-2026-11-12.md). The earlier project history below is retained as dated context, not a current launch claim.
+
 # BEEF
 
 **A cut above the rest.** BEEF is a free, ads-supported gay male social app for

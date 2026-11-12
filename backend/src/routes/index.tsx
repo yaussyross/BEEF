@@ -10,7 +10,7 @@ function Nav() {
     <header className="sticky top-0 z-40 border-b border-char/10 bg-cream/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <a href="#top" className="flex items-center gap-3">
-          <span className="brand-mark text-2xl text-steak sm:text-3xl">BEEF</span>
+          <span className="brand-mark text-2xl text-steak sm:text-3xl">Otter Wink</span>
           <span className="scribble hidden -rotate-3 text-lg text-sizzle sm:inline-block">
             aged to perfection
           </span>
@@ -70,7 +70,7 @@ function Hero() {
           </p>
 
           <p className="mt-6 max-w-md text-lg leading-relaxed text-cream/95">
-            The free gay social app for friends, dates &amp; hookups — local,
+            The upcoming gay social app for friends, dates &amp; hookups — local,
             fresh, and full of flavor. No small talk required (but we won&rsquo;t
             judge you if you make some).
           </p>
@@ -126,9 +126,9 @@ function Hero() {
       {/* social proof strip */}
       <div className="relative border-t border-cream/25 bg-char/10 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-5 py-4 text-sm font-semibold text-cream">
-          <span>Free forever</span>
+          <span>Coming soon</span>
           <span className="hidden text-cream/40 sm:inline">·</span>
-          <span>Ad-supported</span>
+          <span>Adults 18+</span>
           <span className="hidden text-cream/40 sm:inline">·</span>
           <span>Friends, dates &amp; hookups</span>
           <span className="hidden text-cream/40 sm:inline">·</span>
@@ -188,8 +188,8 @@ function ValueProps() {
       color: "bg-sizzle",
     },
     {
-      title: "Wildly free, forever",
-      body: "Free to use, brought to you by tasteful in-app ads. Your inbox stays saucy, your wallet stays full.",
+      title: "Make a connection",
+      body: "Friends, dates and conversation, with room to be yourself. Otter Wink is in development for adults 18+.",
       tag: "Well-marbled",
       color: "bg-berry",
     },
@@ -238,7 +238,7 @@ function Flavor() {
       img: "/beef-model-03-emerald-bomber.jpg",
       kicker: "The grid",
       title: "Nearby guys, one sizzling grid.",
-      body: "Beef is a proximity app in the spirit of the classics — but with a real personality and none of the copycat energy. See who&rsquo;s close by, send a hello, and let the marbling do the talking.",
+      body: "Otter Wink is a proximity app in the spirit of the classics — but with a real personality and none of the copycat energy. See who&rsquo;s close by, send a hello, and let the marbling do the talking.",
     },
     {
       img: "/beef-model-02-coral-tank.jpg",
@@ -261,7 +261,7 @@ function Flavor() {
             Flavor profile
           </p>
           <h2 className="brand-mark mt-3 text-3xl uppercase sm:text-4xl">
-            Why BEEF&rsquo;s the main course
+            Why Otter Wink&rsquo;s the main course
           </h2>
         </div>
 
@@ -345,7 +345,7 @@ function WaitlistForm() {
 
           <form
             id="join"
-            aria-label="Join the BEEF waitlist"
+            aria-label="Join the Otter Wink waitlist"
             aria-busy={status.kind === "busy"}
             onSubmit={submit}
             className="mx-auto mt-10 flex max-w-xl scroll-mt-28 flex-col gap-3 sm:flex-row"
@@ -380,7 +380,7 @@ function WaitlistForm() {
           </form>
 
           <p id="waitlist-note" className="mx-auto mt-4 max-w-xl text-sm text-char/80">
-            BEEF is in development for adults 18+. Joining the waitlist does not
+            Otter Wink is in development for adults 18+. Joining the waitlist does not
             create an app account.
           </p>
           <p
@@ -394,9 +394,9 @@ function WaitlistForm() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-char/60">
-            <span>Free forever</span>
+            <span>Coming soon</span>
             <span>·</span>
-            <span>Ad-supported</span>
+            <span>Adults 18+</span>
             <span>·</span>
             <span>Friends, dates &amp; hookups</span>
             <span>·</span>
@@ -413,18 +413,18 @@ function Footer() {
     <footer className="bg-beefer py-12 text-cream">
       <div className="mx-auto max-w-6xl px-5 text-center">
         <div className="flex items-center justify-center gap-3">
-          <span className="brand-mark text-3xl text-cream">BEEF</span>
+          <span className="brand-mark text-3xl text-cream">Otter Wink</span>
           <span className="scribble -rotate-3 text-lg text-sizzle">
             fresh · local · full of flavor
           </span>
         </div>
         <p className="mx-auto mt-4 max-w-md text-sm text-cream/70">
-          A free, ads-supported gay social app for friends, dates &amp; hookups.
+          An upcoming gay social app for friends, dates &amp; hookups.
           Inspired by the greats — never a copy. Classy, confident, saucy-not-smutty.
         </p>
         <div className="mx-auto mt-6 h-px w-24 bg-cream/25" />
         <p className="mt-6 text-xs text-cream/50">
-          © {new Date().getFullYear()} BEEF. All rights reserved.
+          © {new Date().getFullYear()} Otter Wink. All rights reserved.
         </p>
       </div>
     </footer>

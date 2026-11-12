@@ -1,5 +1,5 @@
 name: beef
-description: BEEF — a free, ads-supported gay social app for friends, dates & hookups. Campy, stylish, privacy-first. A cut above the rest.
+description: Otter Wink — an adult gay social app for friends, dates and connections.
 publish_to: "none"
 version: 0.1.0+1
 
@@ -44,5 +44,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: ../design/store/app-icon-1024.png
+  image_path: ../design/store/otter-wink-icon-1024.png
   remove_alpha_ios: true

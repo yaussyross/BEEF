@@ -56,7 +56,7 @@ class _DeviceLocationScreenState extends State<DeviceLocationScreen> with Widget
       if (!ApiConfig.deviceLocationEnabled)
         const Text('Real device location is disabled in this synthetic test build.')
       else ...[
-        const Text('Tap below to request one location reading while this screen is open. BEEF sends it to its server for discovery; other users receive only your chosen distance display. There is no continuous location tracking.'),
+        const Text('Tap below to request one location reading while this screen is open. Otter Wink sends it to its server for discovery; other users receive only your chosen distance display. There is no continuous location tracking.'),
         if (_message != null) Semantics(liveRegion: true, child: Text(_message!)),
         FilledButton(onPressed: _busy || _disabled ? null : _update, child: Text(_busy ? 'Updating…' : 'Update my location')),
       ],

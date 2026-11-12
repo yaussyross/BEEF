@@ -8,18 +8,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "BEEF — A cut above the rest." },
+      { title: "Otter Wink — Coming soon." },
       {
         name: "description",
         content:
-          "BEEF is the free gay social app for friends, dates & hookups — local, fresh, and full of flavor. Join the waitlist.",
+          "Otter Wink is an upcoming social app for gay men, 18+.",
       },
       { name: "theme-color", content: "#D62839" },
-      { property: "og:title", content: "BEEF — A cut above the rest." },
+      { property: "og:title", content: "Otter Wink — Coming soon." },
       {
         property: "og:description",
         content:
-          "The free gay social app for friends, dates & hookups — local, fresh, and full of flavor.",
+          "An upcoming social app for gay men, 18+.",
       },
       { property: "og:type", content: "website" },
     ],

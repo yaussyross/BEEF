@@ -14,7 +14,7 @@ if manifest.exists():
     node = tree.getroot()
     application = node.find('application')
     if application is not None:
-        application.set(f'{{{ANDROID}}}label', 'BEEF')
+        application.set(f'{{{ANDROID}}}label', 'Otter Wink')
     permissions = {p.get(f'{{{ANDROID}}}name'): p for p in node.findall('uses-permission')}
     # Coarse only; no background or foreground service. Native reading is also
     # disabled by default in Dart until the real-data boundary is approved.
@@ -31,8 +31,8 @@ plist = root / 'ios/Runner/Info.plist'
 if plist.exists():
     with plist.open('rb') as f:
         data = plistlib.load(f)
-    data['CFBundleDisplayName'] = 'BEEF'
-    data['NSLocationWhenInUseUsageDescription'] = 'BEEF uses a location reading you request to find nearby profiles with your chosen privacy settings.'
+    data['CFBundleDisplayName'] = 'Otter Wink'
+    data['NSLocationWhenInUseUsageDescription'] = 'Otter Wink uses a location reading you request to find nearby profiles with your chosen privacy settings.'
     with plist.open('wb') as f:
         plistlib.dump(data, f)
 # For Swift Package Manager, builds must set BYPASS_PERMISSION_LOCATION_ALWAYS=1.

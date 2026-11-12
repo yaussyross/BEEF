@@ -54,7 +54,7 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
     if (!_isAdult(birthdate)) {
       setState(() {
         _error =
-            'BEEF is a strictly 18+ space. Come back when you are of age — '
+            'Otter Wink is a strictly 18+ space. Come back when you are of age — '
             'we will keep a seat warm.';
       });
       return;
@@ -116,7 +116,7 @@ class _AgeGateScreenState extends State<AgeGateScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'BEEF is a strictly 18+ space, no exceptions and no skipping. '
+                'Otter Wink is a strictly 18+ space, no exceptions and no skipping. '
                 'Your birthdate stays private — we only use it to keep the '
                 'room adults-only.',
                 style: theme.textTheme.bodyLarge?.copyWith(

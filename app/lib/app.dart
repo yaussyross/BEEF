@@ -86,7 +86,7 @@ class _BeefAppState extends State<BeefApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     Widget app = MaterialApp(
       key: ValueKey(_chat?.userId ?? 'signed-out'),
-      title: 'BEEF',
+      title: 'Otter Wink',
       debugShowCheckedModeBanner: false,
       theme: BeefTheme.dark,
       home: const AuthGate(),

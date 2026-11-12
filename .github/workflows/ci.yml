@@ -35,6 +35,9 @@ jobs:
         run: bun test tests/chat-idempotency.test.ts tests/runtime.test.ts tests/closed-test.test.ts tests/native-db.test.ts tests/http-hardening.test.ts
 
       # Bun types are included; every TypeScript error now fails CI.
+      - name: Brand and platform-label contract
+        run: python3 ../tests/test_brand.py
+
       - name: Type-check
         run: node_modules/.bin/tsc --noEmit --pretty false
 
